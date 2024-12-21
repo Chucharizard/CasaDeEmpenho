@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .login-container {
+        min-height: calc(100vh - 76px);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 200px;
+        background: var(--primary-gradient);
+        transform: skewY(-3deg);
+        transform-origin: 0;
+        z-index: -1;
+    }
+
+    .login-card {
+        margin-top: 1rem;
+        width: 100%;
+        max-width: 400px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1.5rem;
+        overflow: hidden;
+        box-shadow: 
+            0 10px 25px rgba(0, 0, 0, 0.1),
+            0 5px 10px rgba(0, 0, 0, 0.05),
+            0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    }
+
+    .login-header {
+        background: var(--primary-gradient);
+        padding: 1.5rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+            radial-gradient(circle at top right, rgba(255,255,255,0.2) 0%, transparent 60%),
+            linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.1) 50%, transparent 52%),
+            linear-gradient(-45deg, transparent 48%, rgba(255,255,255,0.1) 50%, transparent 52%);
+        background-size: 100% 100%, 30px 30px, 30px 30px;
+    }
+
+    .login-body {
+        padding: 2rem 1.5rem;
+        position: relative;
+        background: linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.9),
+            rgba(255,255,255,1)
+        );
+    }
+
+    .login-avatar {
+        width: 100px;
+        height: 100px;
+        margin: -65px auto 1.5rem;
+        position: relative;
+        border-radius: 50%;
+        padding: 5px;
+        background: var(--primary-gradient);
+    }
+
+    .login-avatar::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        padding: 5px;
+        background: var(--primary-gradient);
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+    }
+
+    .login-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 4px solid white;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    .input-group {
+        margin-bottom: 2rem;
+        position: relative;
+    }
+
+    .form-control {
+        height: 58px;
+        padding: 0 1.25rem 0 3.5rem;
+        font-size: 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.9);
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        border-color: #667eea;
+        background: white;
+        box-shadow: 
+            0 0 0 4px rgba(102, 126, 234, 0.1),
+            0 0 0 1px #667eea inset;
+    }
+
+    .input-icon {
+        position: absolute;
+        left: 1.25rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1.25rem;
+        color: #94a3b8;
+        transition: all 0.3s ease;
+        pointer-events: none;
+    }
+
+    .form-control:focus + .input-icon {
+        color: #667eea;
+        transform: translateY(-50%) scale(1.1);
+    }
+
+    .btn-login {
+        height: 58px;
+        border: none;
+        background: var(--primary-gradient);
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .btn-login::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 200%;
+        height: 100%;
+        background: linear-gradient(
+            115deg,
+            transparent 0%,
+            transparent 40%,
+            rgba(255, 255, 255, 0.3) 50%,
+            transparent 60%,
+            transparent 100%
+        );
+        transform: translateX(-100%);
+        transition: transform 0.8s ease;
+    }
+
+    .btn-login:hover::before {
+        transform: translateX(0);
+    }
+
+    .login-footer {
+        padding: 1.5rem;
+        text-align: center;
+        background: #f8fafc;
+        border-top: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .login-footer small {
+        color: #64748b;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    /* Efecto de brillo en hover */
+    .login-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 
+            0 30px 60px rgba(0,0,0,0.12),
+            0 0 0 1px rgba(255,255,255,0.2) inset;
+    }
+
+    /* Animaciones */
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+
+    .login-avatar {
+        animation: float 6s ease-in-out infinite;
+    }
+
+    @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .btn-login {
+        background-size: 200% 200%;
+        animation: gradient 15s ease infinite;
+    }
+
+    /* Mejoras responsivas */
+    @media (max-width: 480px) {
+        .login-container {
+            padding: 2rem 1rem;
+        }
+
+        .login-card {
+            border-radius: 20px;
+        }
+
+        .login-avatar {
+            width: 110px;
+            height: 110px;
+            margin: -75px auto 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h3><i class="bi bi-shield-lock me-2"></i>Acceso Administrador</h3>
+        </div>
+        
+        <div class="login-body">
+            <div class="text-center">
+                <img src="{{ url_for('static', filename='public/img1.webp') }}" 
+                     alt="Logo Casa de Empeño" 
+                     class="login-avatar">
+            </div>
+
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="username" name="ci" 
+                           placeholder="Ingresa tu usuario" required>
+                    <i class="bi bi-person-fill input-icon"></i>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password" name="password" 
+                           placeholder="Ingresa tu contraseña" required>
+                    <i class="bi bi-key-fill input-icon"></i>
+                </div>
+                
+                <button type="submit" class="btn btn-login w-100">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Ingresar al Sistema
+                </button>
+            </form>
+        </div>
+
+        <div class="login-footer">
+            <small>
+                <i class="bi bi-shield-lock me-1"></i>
+                Acceso exclusivo para administradores autorizados
+            </small>
+        </div>
+    </div>
+</div>
+{% endblock %}

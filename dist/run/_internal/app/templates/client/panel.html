@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="animate__animated animate__fadeInDown">Bienvenido, {{ current_user.nombre }}</h2>
+    
+    <!-- Resumen de cuenta -->
+    <div class="card mb-4 animate__animated animate__fadeInUp">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Resumen de tu cuenta</h5>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editarPerfilModal">
+                <i class="bi bi-pencil"></i> Editar Perfil
+            </button>
+        </div>
+        <div class="card-body">
+            <p><strong>CI:</strong> {{ current_user.ci }}</p>
+            <p><strong>Teléfono:</strong> {{ current_user.telefono or 'No registrado' }}</p>
+        </div>
+    </div>
+
+    <!-- Préstamos Activos -->
+    <div class="card mb-4 animate__animated animate__fadeInUp">
+        <div class="card-header">
+            <h5 class="mb-0">Tus Préstamos Activos</h5>
+        </div>
+        <div class="card-body">
+            {% if prestamos %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Monto Prestado</th>
+                                <th>Interés</th>
+                                <th>Total a Pagar</th>
+                                <th>Estado</th>
+                                <th>Último Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prestamo in prestamos %}
+                            <tr>
+                                <td data-label="Fecha">{{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</td>
+                                <td data-label="Monto Prestado">${{ "%.2f"|format(prestamo.monto_prestado) }}</td>
+                                <td data-label="Interés">{{ prestamo.interes_mensual }}%</td>
+                                <td data-label="Total a Pagar" class="text-success fw-bold">${{ "%.2f"|format(prestamo.monto_a_pagar) }}</td>
+                                <td data-label="Estado">
+                                    <span class="badge {% if prestamo.estado == 'activo' %}bg-success{% elif prestamo.estado == 'retencion' %}bg-danger{% else %}bg-warning{% endif %}">
+                                        {{ prestamo.estado }}
+                                    </span>
+                                </td>
+                                <td data-label="Último Pago">{{ prestamo.ultimo_pago.strftime('%d/%m/%Y') if prestamo.ultimo_pago else 'Sin pagos' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                </div>
+            {% else %}
+                <p class="text-muted">No tienes préstamos activos</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Artículos Empeñados -->
+<div class="card animate__animated animate__fadeInUp">
+    <div class="card-header">
+        <h5 class="mb-0">Tus Artículos Empeñados</h5>
+    </div>
+    <div class="card-body">
+        {% if prestamos %}
+            {% for prestamo in prestamos %}
+                {% if prestamo.articulos %}
+                    {% for articulo in prestamo.articulos %}
+                    <div class="card mb-3 animate__animated animate__fadeInUp">
+                        <div class="card-header bg-light">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>
+                                    <strong>Préstamo del:</strong> {{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}
+                                    (${{ "%.2f"|format(prestamo.monto_prestado) }})
+                                </span>
+                                <span class="badge {% if prestamo.estado == 'activo' %}bg-success{% elif prestamo.estado == 'retencion' %}bg-danger{% else %}bg-warning{% endif %}">
+                                    {{ prestamo.estado }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h6>{{ articulo.nombre }}</h6>
+                            <p class="mb-1">{{ articulo.descripcion }}</p>
+                            <small class="text-muted">Estado: {{ articulo.estado }}</small>
+                            <div class="mt-2">
+                                {% if prestamo.ultimo_pago %}
+                                    <small class="text-info">
+                                        <i class="bi bi-clock-history"></i>
+                                        Último pago: {{ prestamo.ultimo_pago.strftime('%d/%m/%Y') }}
+                                        {% if prestamo.tipo_ultimo_pago %}
+                                            ({{ prestamo.tipo_ultimo_pago }})
+                                        {% endif %}
+                                    </small>
+                                {% else %}
+                                    <small class="text-warning">
+                                        <i class="bi bi-exclamation-circle"></i>
+                                        Sin pagos registrados
+                                    </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">No tienes artículos empeñados</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Editar Perfil -->
+<div class="modal fade" id="editarPerfilModal" tabindex="-1" aria-labelledby="editarPerfilModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editarPerfilModalLabel">Editar Perfil</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('client.actualizar_perfil') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="tel" name="telefono" class="form-control" id="telefono" 
+                        value="{{ current_user.telefono }}" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Mensajes Flash -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="alert alert-dismissible fade show mt-3">
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+{% endblock %}
+
+{% block styles %}
+<style>
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Reduce la sombra para evitar distorsión */
+        transition: transform 0.2s, box-shadow 0.2s;
+        background-color: #fff; /* Asegura buen contraste */
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    .modal-header {
+        background-color: #6f42c1; /* Morado */
+        color: white;
+    }
+    .modal-footer {
+        justify-content: space-between;
+    }
+    .btn-primary {
+        background-color: #d63384; /* Rosa fucsia */
+        border-color: #d63384;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+    .btn-primary:hover {
+        background-color: #c2185b; /* Rosa fucsia oscuro */
+        border-color: #c2185b;
+    }
+    .btn-close {
+        transition: transform 0.2s;
+    }
+    .btn-close:hover {
+        transform: rotate(90deg);
+    }
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    .animate__animated {
+        animation-duration: 1s;
+        animation-fill-mode: both;
+    }
+    /* Estilos base */
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Reduce la sombra para evitar distorsión */
+        transition: transform 0.2s, box-shadow 0.2s;
+        background-color: #fff; /* Asegura buen contraste */
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Tabla responsiva */
+    @media (max-width: 768px) {
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .table thead {
+            display: none; /* Ocultar cabecera */
+        }
+        .table tbody, .table tr, .table td {
+            display: block;
+            width: 100%;
+            text-align: left; /* Alineación natural */
+            border-bottom: 1px solid #ddd; /* Líneas divisorias */
+            padding: 10px 0;
+        }
+        .table tr {
+            margin-bottom: 10px; /* Espaciado entre filas */
+        }
+        .table td {
+            padding-left: 0;
+            position: relative;
+        }
+        .table td::before {
+            content: attr(data-label);
+            position: relative;
+            font-weight: bold;
+            color: #6c757d; /* Texto de las etiquetas */
+            margin-right: 5px;
+            display: inline-block;
+        }
+    }
+
+    /* Mejorar el diseño de las tarjetas */
+    .card-body p {
+        font-size: 16px; /* Tamaño legible */
+        margin: 0;
+    }
+    .badge {
+        padding: 5px 10px;
+        font-size: 14px; /* Ajustar tamaño de texto */
+    }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+{% endblock %}

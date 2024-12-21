@@ -1,0 +1,759 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea, #764ba2);
+        --success-gradient: linear-gradient(135deg, #0ba360, #3cba92);
+        --warning-gradient: linear-gradient(135deg, #f6d365, #fda085);
+        --danger-gradient: linear-gradient(135deg, #ff758c, #ff7eb3);
+        --info-gradient: linear-gradient(135deg, #4facfe, #00f2fe);
+    }
+
+    /* Contenedor principal */
+    .prestamo-container {
+        padding: 1rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    /* Estilos para el encabezado y breadcrumb */
+    .custom-breadcrumb {
+        background: white;
+        padding: 0.75rem 1.25rem;
+        border-radius: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1.5rem;
+    }
+
+    .breadcrumb-item a {
+        color: #6366f1;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+
+    /* Cards de información */
+    .info-card {
+        border-radius: 1.5rem;
+        border: none;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+
+    .info-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .info-card .card-body {
+        padding: 2rem;
+    }
+
+    .info-icon {
+        font-size: 2rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Tarjetas de resumen */
+    .summary-card {
+        color: white;
+        border: none;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .summary-card.bg-gradient-primary { background: var(--primary-gradient); }
+    .summary-card.bg-gradient-success { background: var(--success-gradient); }
+    .summary-card.bg-gradient-warning { background: var(--warning-gradient); }
+    .summary-card.bg-gradient-danger { background: var(--danger-gradient); }
+    .summary-card.bg-gradient-info { background: var(--info-gradient); }
+
+    .summary-card .card-body {
+        padding: 1.25rem;
+        position: relative;
+        overflow: hidden;
+        z-index: 1;
+    }
+
+    .summary-card .card-body::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at top right, rgba(255,255,255,0.2) 0%, transparent 70%);
+        z-index: -1;
+    }
+
+    .summary-card h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-card small {
+        font-size: 0.8rem;
+        opacity: 0.9;
+    }
+
+    /* Contenedores de información más compactos */
+    .info-section {
+        background: white;
+        border-radius: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        height: 100%;
+        transition: all 0.3s ease;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-section:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .info-header {
+        background: var(--primary-gradient);
+        padding: 1rem 1.5rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .info-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at top right, rgba(255,255,255,0.2) 0%, transparent 70%);
+    }
+
+    .info-header h5 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .info-body {
+        padding: 1.5rem;
+    }
+
+    /* Estilos para la información del cliente */
+    .client-info {
+        display: flex;
+        align-items: flex-start;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .client-avatar {
+        width: 80px;
+        height: 80px;
+        background: var(--primary-gradient);
+        border-radius: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 2.5rem;
+        flex-shrink: 0;
+    }
+
+    .client-details {
+        flex-grow: 1;
+    }
+
+    .client-name {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.5rem;
+    }
+
+    .client-data {
+        display: grid;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .data-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: #f8fafc;
+        border-radius: 0.75rem;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+    }
+
+    .data-item:hover {
+        background: #f1f5f9;
+        transform: translateX(5px);
+    }
+
+    .data-item i {
+        font-size: 1.25rem;
+        color: #6366f1;
+    }
+
+    /* Estilos para la información del artículo */
+    .article-card {
+        background: #f8fafc;
+        border-radius: 1rem;
+        padding: 1.25rem;
+        margin-bottom: 0.75rem;
+        border-left: 4px solid #6366f1;
+        transition: all 0.2s ease;
+    }
+
+    .article-card:hover {
+        background: #f1f5f9;
+        transform: translateX(5px);
+    }
+
+    .article-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .article-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .article-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        background: var(--primary-gradient);
+        color: white;
+    }
+
+    .article-description {
+        color: #64748b;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    /* Estilos mejorados para la sección de acciones */
+    .actions-section {
+        background: white;
+        border-radius: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        margin-top: 2rem;
+    }
+
+    .actions-header {
+        background: var(--primary-gradient);
+        padding: 1.5rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .actions-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at top right, rgba(255,255,255,0.2) 0%, transparent 70%);
+    }
+
+    .actions-body {
+        padding: 2rem;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.75rem 1.25rem;
+        border: none;
+        border-radius: 1rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .action-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .action-btn:hover::before {
+        opacity: 1;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .action-btn.btn-pago {
+        background: var(--success-gradient);
+        color: white;
+    }
+
+    .action-btn.btn-estado {
+        background: var(--warning-gradient);
+        color: white;
+    }
+
+    .action-btn i {
+        font-size: 1.5rem;
+    }
+
+    /* Animación de entrada */
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .actions-section {
+        animation: slideUp 0.5s ease-out forwards;
+    }
+
+    /* Estilos para los modales */
+    .modal-content {
+        border: none;
+        border-radius: 1.5rem;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        background: var(--primary-gradient);
+        color: white;
+        padding: 1rem 1.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .modal-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at top right, rgba(255,255,255,0.2) 0%, transparent 70%);
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 2px solid #e2e8f0;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    /* Ajustes para la tabla de pagos */
+    .table-container {
+        background: white;
+        border-radius: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1.5rem;
+    }
+
+    .table-header {
+        background: var(--primary-gradient);
+        padding: 1.5rem;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table th {
+        background: #f8fafc;
+        color: #4b5563;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.05em;
+        padding: 0.75rem;
+    }
+
+    .table td {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    /* Botones */
+    .btn-action {
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.75rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .btn-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Badges más compactos */
+    .badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 500;
+        font-size: 0.8rem;
+    }
+
+    /* Ajustes responsivos */
+    @media (max-width: 768px) {
+        .stat-card {
+            margin-bottom: 1rem;
+        }
+        
+        .info-section {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="prestamo-container">
+    <!-- Breadcrumb mejorado -->
+    <div class="custom-breadcrumb">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('admin.dashboard') }}">
+                        <i class="bi bi-house-door"></i> Dashboard
+                    </a>
+                </li>
+                <li class="breadcrumb-item active">Detalles del Préstamo</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Resumen del Préstamo -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="summary-card bg-gradient-primary shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-cash-stack info-icon"></i>
+                    <h6 class="card-title">Monto Prestado</h6>
+                    <h2>${{ "%.2f"|format(prestamo.monto_prestado) }}</h2>
+                    <small>Fecha: {{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="summary-card bg-gradient-success shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-credit-card-2-front info-icon"></i>
+                    <h6 class="card-title">Total a Pagar</h6>
+                    <h2>${{ "%.2f"|format(prestamo.monto_a_pagar) }}</h2>
+                    <small>Interés: {{ prestamo.interes_mensual }}%</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="summary-card 
+                {% if prestamo.estado == 'activo' %}bg-gradient-success
+                {% elif prestamo.estado == 'retencion' %}bg-gradient-danger
+                {% elif prestamo.estado == 'finalizado' %}bg-gradient-warning
+                {% elif prestamo.estado == 'decomisado' %}bg-gradient-secondary
+                {% else %}bg-gradient-light text-dark{% endif %} shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-info-circle info-icon"></i>
+                    <h6 class="card-title">Estado Actual</h6>
+                    <h2>{{ prestamo.estado|title }}</h2>
+                    <small>
+                        {% if prestamo.estado == 'activo' %}
+                            Aun en vigencia
+                        {% elif prestamo.estado == 'retencion' %}
+                            En proceso de retención
+                        {% elif prestamo.estado == 'finalizado' %}
+                            El préstamo ha sido finalizado
+                        {% elif prestamo.estado == 'decomisado' %}
+                            El artículo fue decomisado
+                        {% else %}
+                            Estado no definido
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="summary-card bg-gradient-info shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-calendar-event info-icon"></i>
+                    <h6 class="card-title">Fecha de Finalización</h6>
+                    <h2>{{ prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</h2>
+                    <small>Actualizado al pagar interés</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+
+       <!-- Información del Cliente -->
+        <div class="col-md-6 mb-4">
+            <div class="info-section">
+                <div class="info-header">
+                    <h5><i class="bi bi-person-badge-fill"></i> Información del Cliente</h5>
+                </div>
+                <div class="info-body">
+                    <div class="client-info">
+                        <div class="client-avatar">
+                            <i class="bi bi-person"></i>
+                        </div>
+                        <div class="client-details">
+                            <div class="client-name">{{ prestamo.usuario.nombre }}</div>
+                            <span class="badge bg-primary">Cliente {{ 'Frecuente' if prestamo.usuario.prestamos|length > 1 else 'Nuevo' }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="client-data">
+                        <div class="data-item">
+                            <i class="bi bi-credit-card"></i>
+                            <div>
+                                <strong>CI:</strong>
+                                <span>{{ prestamo.usuario.ci }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="data-item">
+                            <i class="bi bi-telephone"></i>
+                            <div>
+                                <strong>Teléfono:</strong>
+                                <span>{{ prestamo.usuario.telefono if prestamo.usuario.telefono else 'No registrado' }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="data-item">
+                            <i class="bi bi-calendar-check"></i>
+                            <div>
+                                <strong>Cliente desde:</strong>
+                                <span>{{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="data-item">
+                            <i class="bi bi-graph-up"></i>
+                            <div>
+                                <strong>Historial:</strong>
+                                <span>{{ prestamo.usuario.prestamos|length }} préstamo(s)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Artículos Empeñados -->
+        <div class="col-md-6 mb-4">
+            <div class="info-section">
+                <div class="info-header">
+                    <h5><i class="bi bi-box-seam"></i> Artículos Empeñados</h5>
+                </div>
+                <div class="info-body">
+                    {% if prestamo.articulos %}
+                        {% for articulo in prestamo.articulos %}
+                            <div class="article-card">
+                                <div class="article-header">
+                                    <h6 class="article-title">{{ articulo.nombre }}</h6>
+                                    <span class="article-badge">{{ articulo.estado }}</span>
+                                </div>
+                                <p class="article-description">{{ articulo.descripcion }}</p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted">
+                            <i class="bi bi-inbox display-4"></i>
+                            <p class="mt-3">No hay artículos registrados</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historial de Pagos -->
+    <div class="table-container mb-4">
+        <div class="table-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Historial de Pagos</h5>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pagoModal">
+                <i class="bi bi-plus-circle"></i> Nuevo Pago
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center">Fecha</th>
+                            <th class="text-center">Tipo</th>
+                            <th class="text-center">Monto</th>
+                            <th class="text-center">Estado Resultante</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if prestamo.pagos %}
+                            {% for pago in prestamo.pagos %}
+                                <tr>
+                                    <td class="text-center">{{ pago.fecha_pago.strftime('%d/%m/%Y') }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ 'info' if pago.tipo_pago == 'interes' else 'success' }}">
+                                            <i class="bi {{ 'bi-currency-dollar' if pago.tipo_pago == 'total' else 'bi-cash-coin' }}"></i>
+                                            {{ pago.tipo_pago|title }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">${{ "%.2f"|format(pago.monto_pagado) }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ 'success' if prestamo.estado == 'activo' else 'danger' if prestamo.estado == 'retencion' else 'warning' }}">
+                                            {{ prestamo.estado }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">No hay pagos registrados</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones mejoradas -->
+    <div class="actions-section">
+        <div class="actions-header">
+            <h5 class="mb-0">Acciones</h5>
+        </div>
+        <div class="actions-body">
+            <button class="action-btn btn-pago" data-bs-toggle="modal" data-bs-target="#pagoModal">
+                <i class="bi bi-cash"></i> Registrar Pago
+            </button>
+            <button class="action-btn btn-estado" data-bs-toggle="modal" data-bs-target="#estadoModal">
+                <i class="bi bi-exclamation-triangle"></i> Cambiar Estado
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Pago -->
+<div class="modal fade" id="pagoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar Pago</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('admin.registrar_pago', prestamo_id=prestamo.id) }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Pago</label>
+                        <select class="form-select" name="tipo_pago" id="tipo_pago" required>
+                            <option value="interes">Pago de Interés (${{ "%.2f"|format(prestamo.monto_prestado * prestamo.interes_mensual / 100) }})</option>
+                            <option value="total">Pago Total (${{ "%.2f"|format(prestamo.monto_a_pagar) }})</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto</label>
+                        <input type="number" class="form-control" name="monto" step="0.01" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Registrar Pago</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cambio de Estado -->
+<div class="modal fade" id="estadoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cambiar Estado</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('admin.cambiar_estado', prestamo_id=prestamo.id) }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nuevo Estado</label>
+                        <select class="form-select" name="estado" required>
+                            <option value="activo">Activo</option>
+                            <option value="retencion">En Retención</option>
+                            <option value="finalizado">Finalizado</option>
+                            <option value="decomisado">Decomisado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Cambiar Estado</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea, #764ba2);
+        --success-gradient: linear-gradient(135deg, #0ba360, #3cba92);
+        --warning-gradient: linear-gradient(135deg, #f6d365, #fda085);
+    }
+
+    .form-container {
+        max-width: 100%; /* Usar el ancho completo */
+        margin: 1rem auto;
+        padding: 0 1rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-header {
+        background: var(--primary-gradient);
+        padding: 1rem 2rem;
+        color: white;
+    }
+
+    .form-body {
+        padding: 2rem;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem;
+    }
+
+    .form-section {
+        background: #f8fafc;
+        border-radius: 1rem;
+        padding: 1.5rem; /* Aumentar el padding */
+    }
+
+    /* Cliente y préstamo en la primera columna */
+    .client-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem; /* Aumentar el gap */
+    }
+
+    /* Artículo y opciones en la segunda columna */
+    .article-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem; /* Aumentar el gap */
+    }
+
+    .form-section-title {
+        color: #1e293b;
+        font-size: 1.1rem; /* Aumentar el tamaño de fuente */
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem; /* Aumentar el margen inferior */
+    }
+
+    .form-label {
+        font-weight: 500;
+        color: #4b5563;
+        margin-bottom: 0.5rem; /* Aumentar el margen inferior */
+        font-size: 1rem; /* Aumentar el tamaño de fuente */
+    }
+
+    .form-control {
+        border: 2px solid #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem; /* Aumentar el padding */
+        font-size: 1rem; /* Aumentar el tamaño de fuente */
+        transition: all 0.3s ease;
+    }
+
+    .input-group {
+        margin-bottom: 1rem; /* Aumentar el margen inferior */
+    }
+
+    .form-text {
+        font-size: 0.9rem; /* Aumentar el tamaño de fuente */
+        color: #64748b;
+    }
+
+    /* Botones en el footer */
+    .form-footer {
+        background: #f8fafc;
+        padding: 1.5rem 2rem; /* Aumentar el padding */
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1.5rem; /* Aumentar el gap */
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem; /* Aumentar el padding */
+        font-size: 1rem; /* Aumentar el tamaño de fuente */
+    }
+
+    /* Mejorar la apariencia del checkbox */
+    .form-check {
+        padding: 0.75rem; /* Aumentar el padding */
+        background: white;
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .form-body {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Animaciones */
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .form-card {
+        animation: slideUp 0.5s ease-out forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h2 class="mb-0"><i class="bi bi-plus-circle-fill"></i> Nuevo Préstamo</h2>
+        </div>
+        
+        <form method="POST" id="prestamoForm">
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="p-3">
+                        {% for message in messages %}
+                            <div class="alert alert-danger mb-0">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="form-body">
+                <!-- Columna izquierda: Cliente y Préstamo -->
+                <div class="client-section">
+                    <div class="form-section">
+                        <h3 class="form-section-title">
+                            <i class="bi bi-person-fill"></i> Información del Cliente
+                        </h3>
+                        
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                            <input type="text" class="form-control" id="ci" name="ci" placeholder="CI del Cliente" required>
+                        </div>
+
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre Completo" required>
+                        </div>
+
+                        <div class="input-group mb-0">
+                            <span class="input-group-text"><i class="bi bi-telephone-fill"></i></span>
+                            <input type="tel" class="form-control" id="telefono" name="telefono" placeholder="Teléfono (Opcional)">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="form-section-title">
+                            <i class="bi bi-cash"></i> Detalles del Préstamo
+                        </h3>
+
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="monto" name="monto" step="0.01" placeholder="Monto del Préstamo" required>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="imprimir_documento" name="imprimir_documento" checked>
+                            <label class="form-check-label" for="imprimir_documento">
+                                Generar documento legal
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Columna derecha: Artículo -->
+                <div class="article-section">
+                    <div class="form-section h-100">
+                        <h3 class="form-section-title">
+                            <i class="bi bi-box-seam"></i> Información del Artículo
+                        </h3>
+
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-tag-fill"></i></span>
+                            <input type="text" class="form-control" id="articulo_nombre" name="articulo_nombre" placeholder="Nombre del Artículo" required>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <label for="articulo_descripcion" class="form-label">Descripción detallada</label>
+                            <textarea class="form-control" id="articulo_descripcion" name="articulo_descripcion" rows="5" placeholder="Describe el artículo, incluyendo marca, modelo, estado, etc." required></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-footer">
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </a>
+                <button type="button" class="btn btn-primary" onclick="confirmarEnvio()">
+                    <i class="bi bi-check-circle"></i> Crear Préstamo
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function limpiarFormulario() {
+        document.getElementById('prestamoForm').reset();
+    }
+
+    function confirmarEnvio() {
+        const form = document.getElementById('prestamoForm');
+        
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "Esta acción creará un nuevo préstamo",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#667eea',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, crear préstamo',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Guardar el estado del checkbox antes de enviar
+                const imprimirDocumento = document.getElementById('imprimir_documento').checked;
+                
+                // Enviar el formulario
+                form.submit();
+                
+                // Limpiar el formulario después de un breve retraso
+                setTimeout(() => {
+                    limpiarFormulario();
+                    // Restaurar el estado del checkbox
+                    document.getElementById('imprimir_documento').checked = imprimirDocumento;
+                }, 1000);
+            }
+        });
+    }
+
+    // Agregar evento para limpiar el formulario cuando se muestra un mensaje de éxito
+    document.addEventListener('DOMContentLoaded', function() {
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == 'success' %}
+                    limpiarFormulario();
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+    });
+</script>
+{% endblock %}
