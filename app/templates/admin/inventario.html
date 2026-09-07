@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> Volver al Dashboard
+    </a>
+
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>📦 Gestión de Inventario</h2>
+                <p>Administra tus compras, ventas y stock</p>
+            </div>
+            <div>
+                <a href="{{ url_for('admin.nuevo_producto', tipo='compra') }}" class="btn-nuevo me-2">
+                    <i class="bi bi-cart-plus"></i> Nueva Compra
+                </a>
+                <a href="{{ url_for('admin.nuevo_producto', tipo='venta') }}" class="btn-nuevo">
+                    <i class="bi bi-plus-circle"></i> Nuevo Producto
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="icon">💸</div>
+            <div class="label">Total Invertido</div>
+            <div class="value">Bs. {{ "%.2f"|format(total_invertido) }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon">💰</div>
+            <div class="label">Total Vendido</div>
+            <div class="value">Bs. {{ "%.2f"|format(total_vendido) }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="icon">📈</div>
+            <div class="label">Ganancia Total</div>
+            <div class="value {% if ganancia_total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                Bs. {{ "%.2f"|format(ganancia_total) }}
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="icon">📦</div>
+            <div class="label">Artículos en Stock</div>
+            <div class="value">{{ articulos_stock|length }}</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs">
+        <li class="nav-item">
+            <a class="nav-link {% if tab == 'venta' %}active{% endif %}" href="{{ url_for('admin.inventario', tab='venta') }}">
+                🛍️ En Venta
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if tab == 'compra' %}active{% endif %}" href="{{ url_for('admin.inventario', tab='compra') }}">
+                🛒 Compras
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if tab == 'vendidos' %}active{% endif %}" href="{{ url_for('admin.inventario', tab='vendidos') }}">
+                ✅ Vendidos
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if tab == 'empeniados' %}active{% endif %}" href="{{ url_for('admin.inventario', tab='empeniados') }}">
+                💎 Artículos Empeñados (Retención)
+            </a>
+        </li>
+    </ul>
+
+    <!-- Tabla de productos -->
+    <div class="productos-table">
+        {% if tab == 'empeniados' %}
+            {% if articulos_stock %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Artículo</th>
+                            <th>Descripción</th>
+                            <th>Monto Préstamo</th>
+                            <th>Cliente</th>
+                            <th>Fecha Vencimiento</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for articulo in articulos_stock %}
+                        <tr>
+                            <td><strong>{{ articulo.nombre }}</strong></td>
+                            <td>{{ articulo.descripcion[:50] }}</td>
+                            <td>Bs. {{ "%.2f"|format(articulo.prestamo.monto_prestado) }}</td>
+                            <td>{{ articulo.prestamo.usuario.nombre }}</td>
+                            <td>{{ articulo.prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                <a href="{{ url_for('admin.ver_prestamo', prestamo_id=articulo.prestamo.id) }}" class="btn btn-sm btn-editar">
+                                    <i class="bi bi-eye"></i> Ver Préstamo
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">💎</div>
+                <h4>No hay artículos en retención</h4>
+                <p>Aquí aparecerán los artículos de préstamos vencidos que pasaron a retención.</p>
+            </div>
+            {% endif %}
+        {% else %}
+            {% if productos %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Descripción</th>
+                            {% if tab == 'compra' or tab == 'vendidos' %}
+                            <th>Precio Compra</th>
+                            {% endif %}
+                            <th>Precio Venta</th>
+                            {% if tab == 'vendidos' %}
+                            <th>Ganancia</th>
+                            <th>Fecha Venta</th>
+                            {% else %}
+                            <th>Stock</th>
+                            {% endif %}
+                            {% if tab != 'vendidos' %}
+                            <th>Acciones</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto in productos %}
+                        <tr>
+                            <td><strong>{{ producto.nombre }}</strong></td>
+                            <td>{{ producto.descripcion[:50] }}{% if producto.descripcion|length > 50 %}...{% endif %}</td>
+                            {% if tab == 'compra' or tab == 'vendidos' %}
+                            <td>Bs. {{ "%.2f"|format(producto.precio_compra or 0) }}</td>
+                            {% endif %}
+                            <td>Bs. {{ "%.2f"|format(producto.precio) }}</td>
+                            {% if tab == 'vendidos' %}
+                            <td class="{% if producto.ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                <strong>Bs. {{ "%.2f"|format(producto.ganancia) }}</strong>
+                            </td>
+                            <td>{{ producto.fecha_venta.strftime('%d/%m/%Y') if producto.fecha_venta else '-' }}</td>
+                            {% else %}
+                            <td><span class="badge-stock">{{ producto.stock }} unidades</span></td>
+                            {% endif %}
+                            {% if tab != 'vendidos' %}
+                            <td>
+                                {% if tab == 'compra' and producto.estado == 'compra' %}
+                                <!-- Botón para poner en venta -->
+                                <button type="button" class="btn btn-sm btn-vender" data-bs-toggle="modal" data-bs-target="#modalPonerVenta{{ producto.id }}">
+                                    <i class="bi bi-tag"></i> Poner en Venta
+                                </button>
+                                {% else %}
+                                <a href="{{ url_for('admin.editar_producto', producto_id=producto.id) }}" class="btn btn-sm btn-editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% endif %}
+                                
+                                {% if tab == 'venta' %}
+                                <button type="button" class="btn btn-sm btn-vender" data-bs-toggle="modal" data-bs-target="#modalVender{{ producto.id }}">
+                                    <i class="bi bi-cart-check"></i> Vender
+                                </button>
+                                {% endif %}
+                                
+                                <form method="POST" action="{{ url_for('admin.eliminar_producto', producto_id=producto.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-eliminar" onclick="return confirm('¿Eliminar este producto?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">📭</div>
+                <h4>No hay productos en esta sección</h4>
+                <p>Agrega productos para comenzar</p>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modales para Poner en Venta -->
+{% for producto in productos %}
+{% if producto.estado == 'compra' %}
+<div class="modal fade" id="modalPonerVenta{{ producto.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title text-success">
+                    <i class="bi bi-tag"></i> Poner en Venta: {{ producto.nombre }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.poner_en_venta', producto_id=producto.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="text-muted">Precio de Compra:</label>
+                        <p class="text-success fs-5 fw-bold">
+                            Bs. {{ "%.2f"|format(producto.precio_compra or 0) }}
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Precio de Venta (Bs.) *</label>
+                        <input type="number" step="0.01" class="form-control" name="precio_venta" required 
+                               placeholder="¿A cuánto lo venderás?">
+                    </div>
+                    <div class="alert alert-success text-dark">
+                        <i class="bi bi-info-circle-fill text-success"></i>
+                        El producto se moverá a la sección "En Venta" una vez que establezcas el precio.
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Poner en Venta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal para Vender (con precio final) -->
+{% if producto.estado == 'disponible' %}
+<div class="modal fade" id="modalVender{{ producto.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title text-success">
+                    <i class="bi bi-cart-check"></i> Vender: {{ producto.nombre }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.vender_producto', producto_id=producto.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="text-muted">Precio de Venta Establecido:</label>
+                        <p class="text-success fs-5 fw-bold">
+                            Bs. {{ "%.2f"|format(producto.precio) }}
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Precio Final de Venta (Bs.) *</label>
+                        <input type="number" step="0.01" class="form-control" name="precio_final" 
+                               value="{{ producto.precio }}" required 
+                               placeholder="Puede ser diferente si negociaste">
+                        <small class="text-muted">Puedes ajustar el precio si se vendió por menos o más</small>
+                    </div>
+                    <div class="alert alert-warning text-dark">
+                        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                        Stock actual: {{ producto.stock }} unidades. Se venderá 1 unidad.
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Confirmar Venta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% endblock %}

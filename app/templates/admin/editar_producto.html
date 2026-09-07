@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('admin.inventario', tab=producto.tipo) }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+
+    <div class="form-container">
+        <h2>✏️ Editar Producto</h2>
+        <p class="subtitle">Actualiza los datos del producto</p>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Nombre del Producto *</label>
+                    <input type="text" class="form-control" name="nombre" value="{{ producto.nombre }}" required>
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Descripción</label>
+                    <textarea class="form-control" name="descripcion" rows="3">{{ producto.descripcion or '' }}</textarea>
+                </div>
+
+                {% if producto.tipo == 'compra' %}
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Precio de Compra (Bs.) *</label>
+                    <input type="number" step="0.01" class="form-control" name="precio_compra" value="{{ producto.precio_compra or 0 }}" required>
+                </div>
+                {% endif %}
+
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Precio de Venta (Bs.) *</label>
+                    <input type="number" step="0.01" class="form-control" name="precio" value="{{ producto.precio }}" required>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Stock (Cantidad) *</label>
+                    <input type="number" class="form-control" name="stock" value="{{ producto.stock }}" required min="0">
+                </div>
+
+                {% if producto.tipo == 'compra' %}
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Proveedor (Opcional)</label>
+                    <input type="text" class="form-control" name="proveedor" value="{{ producto.proveedor or '' }}">
+                </div>
+                {% endif %}
+
+                <div class="col-md-12">
+                    <button type="submit" class="btn btn-guardar w-100">
+                        <i class="bi bi-check-circle"></i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

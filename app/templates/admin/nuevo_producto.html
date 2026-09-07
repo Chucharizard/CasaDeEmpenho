@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('admin.inventario', tab=tipo) }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+
+    <div class="form-container">
+        <h2>{% if tipo == 'compra' %}🛒 Registrar Compra{% else %}🛍️ Nuevo Producto en Venta{% endif %}</h2>
+        <p class="subtitle">Completa los datos del producto</p>
+
+        <div class="info-box">
+            <i class="bi bi-info-circle-fill"></i>
+            {% if tipo == 'compra' %}
+            <strong>Compra:</strong> Registra artículos que compraste para revender.
+            {% else %}
+            <strong>Venta:</strong> Agrega productos disponibles para vender.
+            {% endif %}
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tipo" value="{{ tipo }}">
+            
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Nombre del Producto *</label>
+                    <input type="text" class="form-control" name="nombre" required placeholder="Ej: iPhone 13 Pro Max">
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Descripción</label>
+                    <textarea class="form-control" name="descripcion" rows="3" placeholder="Características, estado, etc."></textarea>
+                </div>
+
+                {% if tipo == 'compra' %}
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Precio de Compra (Bs.) *</label>
+                    <input type="number" step="0.01" class="form-control" name="precio_compra" required placeholder="¿Cuánto pagaste?">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Stock (Cantidad) *</label>
+                    <input type="number" class="form-control" name="stock" value="1" required min="1">
+                </div>
+
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Proveedor (Opcional)</label>
+                    <input type="text" class="form-control" name="proveedor" placeholder="¿De quién compraste?">
+                </div>
+                {% else %}
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Precio de Venta (Bs.) *</label>
+                    <input type="number" step="0.01" class="form-control" name="precio" required placeholder="¿A cuánto lo vendes?">
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Stock (Cantidad) *</label>
+                    <input type="number" class="form-control" name="stock" value="1" required min="1">
+                </div>
+                {% endif %}
+
+                <div class="col-md-12">
+                    <button type="submit" class="btn btn-guardar w-100">
+                        <i class="bi bi-check-circle"></i> Guardar Producto
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

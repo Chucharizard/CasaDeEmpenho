@@ -1,0 +1,843 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .settings-page {
+        display: grid;
+        gap: 1.35rem;
+    }
+
+    .settings-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+        gap: 1rem;
+        padding: 1.2rem;
+        background:
+            radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 34%),
+            linear-gradient(135deg, #ffffff, #f7fbff);
+        border: 1px solid var(--borde);
+        border-radius: 22px;
+        box-shadow: var(--sombra-suave);
+    }
+
+    .settings-hero-main {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .settings-hero-icon {
+        width: 68px;
+        height: 68px;
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: #ffffff;
+        font-size: 1.85rem;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+        flex-shrink: 0;
+    }
+
+    .settings-hero-copy h1 {
+        margin: 0;
+        font-size: clamp(2rem, 3vw, 2.8rem);
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+    }
+
+    .settings-hero-copy p {
+        margin: 0.8rem 0 0;
+        max-width: 56ch;
+        color: var(--color-texto-secundario);
+        font-size: 1.03rem;
+    }
+
+    .settings-hero-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-top: 1rem;
+    }
+
+    .settings-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.55rem 0.85rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 999px;
+        color: #334155;
+        font-size: 0.88rem;
+        font-weight: 600;
+    }
+
+    .settings-hero-side {
+        display: grid;
+        gap: 0.85rem;
+        align-content: start;
+    }
+
+    .settings-note {
+        padding: 1rem 1.05rem;
+        background: rgba(240, 253, 244, 0.72);
+        border: 1px solid #bbf7d0;
+        border-radius: 18px;
+    }
+
+    .settings-note .eyebrow {
+        margin: 0 0 0.3rem;
+        color: #059669;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .settings-note strong {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: #0f172a;
+    }
+
+    .settings-note span {
+        color: #475569;
+        font-size: 0.92rem;
+    }
+
+    .settings-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .settings-stat {
+        position: relative;
+        overflow: hidden;
+        padding: 1rem 1.05rem;
+        border-radius: 20px;
+        border: 1px solid var(--borde);
+        background:
+            linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+        box-shadow: var(--sombra-suave);
+    }
+
+    .settings-stat::after {
+        content: "";
+        position: absolute;
+        inset: auto -20px -24px auto;
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        background: rgba(16, 185, 129, 0.08);
+    }
+
+    .settings-stat-top {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .settings-stat-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #ecfdf5;
+        color: #059669;
+        font-size: 1.25rem;
+        border: 1px solid #d1fae5;
+        flex-shrink: 0;
+    }
+
+    .settings-stat-label {
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.76rem;
+        font-weight: 700;
+        margin-bottom: 0.15rem;
+    }
+
+    .settings-stat-value {
+        font-size: 2rem;
+        line-height: 1;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        color: #0f172a;
+    }
+
+    .settings-stat-subvalue {
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .settings-main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .settings-stack {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .settings-panel {
+        background: #ffffff;
+        border: 1px solid var(--borde);
+        border-radius: 22px;
+        box-shadow: var(--sombra-suave);
+        overflow: hidden;
+    }
+
+    .settings-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1.15rem 1.2rem 1rem;
+        border-bottom: 1px solid rgba(203, 213, 225, 0.7);
+        background: linear-gradient(180deg, rgba(248,250,252,0.95), #ffffff);
+    }
+
+    .settings-panel-title {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 1.65rem;
+        line-height: 1;
+        letter-spacing: -0.04em;
+    }
+
+    .settings-panel-title i {
+        color: #0f766e;
+    }
+
+    .settings-panel-subtitle {
+        margin: 0.45rem 0 0;
+        color: #64748b;
+        max-width: 54ch;
+    }
+
+    .settings-panel-body {
+        padding: 1.15rem 1.2rem 1.2rem;
+    }
+
+    .settings-field-grid {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .settings-field {
+        display: grid;
+        gap: 0.38rem;
+    }
+
+    .settings-field label {
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .settings-field small {
+        color: #64748b;
+        line-height: 1.45;
+    }
+
+    .settings-input,
+    .settings-select {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        background: #f8fafc;
+        padding: 0.85rem 0.95rem;
+        font-size: 1rem;
+        color: #0f172a;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .settings-input:focus,
+    .settings-select:focus {
+        outline: none;
+        background: #ffffff;
+        border-color: #10b981;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+    }
+
+    .settings-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.1rem;
+    }
+
+    .settings-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+        min-height: 48px;
+        padding: 0.8rem 1.1rem;
+        border: none;
+        border-radius: 14px;
+        font-weight: 700;
+        text-decoration: none;
+        transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 200ms ease, opacity 200ms ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .settings-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--sombra-elevada);
+        }
+    }
+
+    .settings-btn:active {
+        transform: scale(0.97);
+    }
+
+    .settings-btn-primary {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: #ffffff;
+    }
+
+    .settings-btn-secondary {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .settings-btn-danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: #ffffff;
+    }
+
+    /* Selector de temas con preview en vivo */
+    .theme-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+        gap: 0.8rem;
+    }
+
+    .theme-grid input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .theme-card {
+        position: relative;
+        display: grid;
+        gap: 0.55rem;
+        padding: 0.7rem;
+        border: 1px solid var(--borde);
+        border-radius: 16px;
+        background: #ffffff;
+        cursor: pointer;
+        transition: border-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
+                    box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1),
+                    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+        opacity: 0;
+        transform: translateY(8px);
+        animation: theme-card-in 320ms ease-out forwards;
+    }
+
+    .theme-card:nth-child(1) { animation-delay: 0ms; }
+    .theme-card:nth-child(2) { animation-delay: 50ms; }
+    .theme-card:nth-child(3) { animation-delay: 100ms; }
+    .theme-card:nth-child(4) { animation-delay: 150ms; }
+    .theme-card:nth-child(5) { animation-delay: 200ms; }
+
+    .theme-card:active {
+        transform: scale(0.97);
+    }
+
+    .theme-card.is-active {
+        border-color: var(--primario);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .theme-card:hover {
+            border-color: var(--primario);
+            transform: translateY(-2px);
+        }
+    }
+
+    .theme-card input:focus-visible + .theme-swatch {
+        outline: var(--anillo-foco);
+        outline-offset: 3px;
+        border-radius: 12px;
+    }
+
+    .theme-swatch {
+        display: flex;
+        height: 42px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .theme-swatch .sw { flex: 1; }
+    .theme-swatch .sw-primary { flex: 0.55; }
+
+    .theme-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+
+    .theme-check {
+        position: absolute;
+        top: 9px;
+        right: 9px;
+        color: var(--primario);
+        font-size: 1.05rem;
+        opacity: 0;
+        transform: scale(0.8);
+        transition: opacity 160ms ease-out, transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .theme-card.is-active .theme-check {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    @keyframes theme-card-in {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .theme-card {
+            animation: none;
+            opacity: 1;
+            transform: none;
+            transition: border-color 180ms ease, box-shadow 180ms ease;
+        }
+        .theme-card:active,
+        .theme-card:hover {
+            transform: none;
+        }
+        .settings-btn:active {
+            transform: none;
+        }
+    }
+
+    .settings-meta-grid {
+        display: grid;
+        gap: 0.8rem;
+    }
+
+    .settings-meta-card {
+        padding: 0.95rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: #fbfdff;
+    }
+
+    .settings-meta-card .meta-label {
+        color: #64748b;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.35rem;
+    }
+
+    .settings-meta-card .meta-value {
+        color: #0f172a;
+        font-weight: 600;
+        word-break: break-word;
+        line-height: 1.45;
+    }
+
+    .settings-history-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.75fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .settings-history-table {
+        max-height: 560px;
+        overflow: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+    }
+
+    .settings-history-table table {
+        margin-bottom: 0;
+    }
+
+    .settings-history-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f8fafc !important;
+    }
+
+    .settings-file {
+        font-weight: 600;
+        color: #0f172a;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .settings-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-top: 1rem;
+    }
+
+    .settings-pill {
+        padding: 0.55rem 0.75rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    @media (max-width: 1200px) {
+        .settings-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .settings-main-grid,
+        .settings-history-shell,
+        .settings-hero {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .settings-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .settings-hero,
+        .settings-panel-body,
+        .settings-panel-header {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .settings-hero-main {
+            flex-direction: column;
+        }
+
+        .settings-panel-title {
+            font-size: 1.35rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container settings-page">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> Volver al Dashboard
+    </a>
+
+    <section class="settings-hero">
+        <div class="settings-hero-main">
+            <div class="settings-hero-icon">
+                <i class="bi bi-sliders2"></i>
+            </div>
+            <div class="settings-hero-copy">
+                <h1>Configuracion del sistema</h1>
+                <p>Desde aqui puedes ajustar reglas operativas, gestionar respaldos y abrir herramientas reales del negocio sin tener que navegar por varias pantallas.</p>
+                <div class="settings-hero-tags">
+                    <span class="settings-tag"><i class="bi bi-shield-check"></i> Restauracion con confirmacion</span>
+                    <span class="settings-tag"><i class="bi bi-graph-up-arrow"></i> Reportes listos</span>
+                    <span class="settings-tag"><i class="bi bi-cloud-arrow-down"></i> Respaldo manual inmediato</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-hero-side">
+            <div class="settings-note">
+                <p class="eyebrow">Operativo</p>
+                <strong>Respaldos visibles y recuperables</strong>
+                <span>La pantalla ahora sirve para trabajo real: crear, revisar y restaurar copias desde el mismo panel.</span>
+            </div>
+            <div class="settings-note">
+                <p class="eyebrow">Contexto</p>
+                <strong>{{ sistema_info.plataforma }} · Python {{ sistema_info.python_version }}</strong>
+                <span>Ultima lectura del sistema: {{ sistema_info.fecha_actual }}</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-stats">
+        <article class="settings-stat">
+            <div class="settings-stat-top">
+                <div class="settings-stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div>
+                    <div class="settings-stat-label">Usuarios</div>
+                    <div class="settings-stat-value">{{ total_usuarios }}</div>
+                </div>
+            </div>
+            <div class="settings-stat-subvalue">Base total registrada</div>
+        </article>
+
+        <article class="settings-stat">
+            <div class="settings-stat-top">
+                <div class="settings-stat-icon"><i class="bi bi-safe2"></i></div>
+                <div>
+                    <div class="settings-stat-label">Prestamos prendarios</div>
+                    <div class="settings-stat-value">{{ total_prestamos_prendarios }}</div>
+                </div>
+            </div>
+            <div class="settings-stat-subvalue">Bs. {{ "%.2f"|format(total_prestado_prendario) }} activos</div>
+        </article>
+
+        <article class="settings-stat">
+            <div class="settings-stat-top">
+                <div class="settings-stat-icon"><i class="bi bi-box-seam"></i></div>
+                <div>
+                    <div class="settings-stat-label">Inventario</div>
+                    <div class="settings-stat-value">{{ total_productos }}</div>
+                </div>
+            </div>
+            <div class="settings-stat-subvalue">Bs. {{ "%.2f"|format(total_vendido) }} vendidos</div>
+        </article>
+    </section>
+
+    <section class="settings-main-grid">
+        <div class="settings-stack">
+            <article class="settings-panel">
+                <div class="settings-panel-header">
+                    <div>
+                        <h3 class="settings-panel-title"><i class="bi bi-percent"></i> Tasas y reglas</h3>
+                        <p class="settings-panel-subtitle">Mantiene visibles los limites operativos y deja listo el espacio para evolucionar esta parte a configuracion persistente.</p>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="accion" value="cambiar_interes">
+                        <div class="settings-field-grid">
+                            <div class="settings-field">
+                                <label for="interes_prendario">Interes prendario (%)</label>
+                                <input id="interes_prendario" type="number" class="settings-input" step="0.1" value="{{ tasas.prendario }}" name="interes_prendario">
+                            </div>
+                            <div class="settings-field">
+                                <label for="interes_maximo">Interes maximo permitido (%)</label>
+                                <input id="interes_maximo" type="number" class="settings-input" step="0.1" value="{{ tasas.maximo }}" name="interes_maximo">
+                                <small>Por ahora se valida como limite operativo general para no cargar tasas fuera de rango.</small>
+                            </div>
+                        </div>
+                        <div class="settings-actions">
+                            <button type="submit" class="settings-btn settings-btn-primary">
+                                <i class="bi bi-check-circle"></i> Guardar tasas
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </article>
+
+            <article class="settings-panel">
+                <div class="settings-panel-header">
+                    <div>
+                        <h3 class="settings-panel-title"><i class="bi bi-palette"></i> Personalización</h3>
+                        <p class="settings-panel-subtitle">Cambia los colores y el estilo visual de la aplicación.</p>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <form method="POST" id="theme-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="accion" value="cambiar_tema">
+                        <div class="theme-grid" role="radiogroup" aria-label="Tema del sistema">
+                            {% for key, theme in themes.items() %}
+                            <label class="theme-card {% if tema_actual == key %}is-active{% endif %}">
+                                <input type="radio" name="tema" value="{{ key }}" {% if tema_actual == key %}checked{% endif %}>
+                                <span class="theme-swatch">
+                                    <span class="sw sw-sidebar" style="background: {{ theme.variables['--bg-sidebar'] }}"></span>
+                                    <span class="sw sw-card" style="background: {{ theme.variables['--bg-tarjeta'] }}"></span>
+                                    <span class="sw sw-primary" style="background: {{ theme.variables['--primario'] }}"></span>
+                                </span>
+                                <span class="theme-name">{{ theme.name }}</span>
+                                <i class="bi bi-check-circle-fill theme-check"></i>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <div class="settings-actions">
+                            <button type="submit" class="settings-btn settings-btn-primary">
+                                <i class="bi bi-brush"></i> Aplicar Tema
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </article>
+
+            <article class="settings-panel">
+                <div class="settings-panel-header">
+                    <div>
+                        <h3 class="settings-panel-title"><i class="bi bi-lightning-charge"></i> Atajos operativos</h3>
+                        <p class="settings-panel-subtitle">Accesos rapidos a datos de sistema y herramientas que ayudan en el trabajo diario.</p>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="settings-meta-grid">
+                        <div class="settings-meta-card">
+                            <div class="meta-label">Ruta de respaldos</div>
+                            <div class="meta-value">{{ sistema_info.backup_dir }}</div>
+                        </div>
+                        <div class="settings-meta-card">
+                            <div class="meta-label">Base de datos activa</div>
+                            <div class="meta-value">{{ sistema_info.db_path }}</div>
+                        </div>
+                        <div class="settings-meta-card">
+                            <div class="meta-label">Plataforma</div>
+                            <div class="meta-value">{{ sistema_info.plataforma }} ({{ sistema_info.arquitectura }})</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-pills">
+                        <span class="settings-pill">Invertido: Bs. {{ "%.2f"|format(total_invertido) }}</span>
+                        <span class="settings-pill">Vendido: Bs. {{ "%.2f"|format(total_vendido) }}</span>
+                        <span class="settings-pill">Actualizado: {{ sistema_info.fecha_actual }}</span>
+                    </div>
+
+                    <div class="settings-actions">
+                        <a href="{{ url_for('admin.reportes') }}" class="settings-btn settings-btn-secondary">
+                            <i class="bi bi-bar-chart-line"></i> Abrir reportes
+                        </a>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <article class="settings-panel">
+            <div class="settings-panel-header">
+                <div>
+                    <h3 class="settings-panel-title"><i class="bi bi-shield-lock"></i> Respaldos y restauracion</h3>
+                    <p class="settings-panel-subtitle">Las acciones sensibles quedaron agrupadas en un solo lugar, con respaldo manual inmediato y restauracion protegida por contrasena.</p>
+                </div>
+            </div>
+            <div class="settings-panel-body">
+                <div class="settings-meta-grid mb-3">
+                    <div class="settings-meta-card">
+                        <div class="meta-label">Ruta de respaldos</div>
+                        <div class="meta-value">{{ sistema_info.backup_dir }}</div>
+                    </div>
+                    <div class="settings-meta-card">
+                        <div class="meta-label">Base activa</div>
+                        <div class="meta-value">{{ sistema_info.db_path }}</div>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('admin.hacer_respaldo') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="settings-actions" style="margin-top: 0;">
+                        <button type="submit" class="settings-btn settings-btn-secondary">
+                            <i class="bi bi-cloud-arrow-down"></i> Crear respaldo ahora
+                        </button>
+                    </div>
+                </form>
+
+                <hr class="my-4">
+
+                <form method="POST" action="{{ url_for('admin.restaurar_respaldo') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="settings-field-grid">
+                        <div class="settings-field">
+                            <label for="backup_name">Selecciona un respaldo</label>
+                            <select id="backup_name" class="settings-select" name="backup_name" required>
+                                <option value="">Selecciona un archivo...</option>
+                                {% for backup in backups %}
+                                <option value="{{ backup.name }}">
+                                    {{ backup.name }} · {{ backup.modified_at.strftime('%d/%m/%Y %H:%M') }} · {{ backup.size_mb }} MB
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="settings-field">
+                            <label for="password_confirmacion">Contrasena del usuario actual</label>
+                            <input id="password_confirmacion" type="password" class="settings-input" name="password_confirmacion" required>
+                            <small>Se pide confirmacion antes de reemplazar la base activa para evitar restauraciones accidentales.</small>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-btn settings-btn-danger">
+                            <i class="bi bi-arrow-clockwise"></i> Restaurar respaldo
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </article>
+    </section>
+
+    <section class="settings-panel">
+        <div class="settings-panel-header">
+            <div>
+                <h3 class="settings-panel-title"><i class="bi bi-clock-history"></i> Historial de respaldos</h3>
+                <p class="settings-panel-subtitle">Vista amplia para revisar rapidamente que respaldos existen, cuando se crearon y cuanto pesan.</p>
+            </div>
+        </div>
+        <div class="settings-panel-body">
+            {% if backups %}
+            <div class="settings-history-shell">
+                <div class="settings-history-table">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Archivo</th>
+                                <th>Fecha</th>
+                                <th>Tamano</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for backup in backups %}
+                            <tr>
+                                <td class="settings-file">{{ backup.name }}</td>
+                                <td>{{ backup.modified_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>{{ backup.size_mb }} MB</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="settings-meta-grid">
+                    <div class="settings-meta-card">
+                        <div class="meta-label">Total de respaldos</div>
+                        <div class="meta-value">{{ backups|length }} archivo(s)</div>
+                    </div>
+                    <div class="settings-meta-card">
+                        <div class="meta-label">Mas reciente</div>
+                        <div class="meta-value">{{ backups[0].modified_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                    </div>
+                    <div class="settings-meta-card">
+                        <div class="meta-label">Tamano del mas reciente</div>
+                        <div class="meta-value">{{ backups[0].size_mb }} MB</div>
+                    </div>
+                    <div class="settings-meta-card">
+                        <div class="meta-label">Sugerencia</div>
+                        <div class="meta-value">Mantener varios puntos recientes te ayuda a volver atras con tranquilidad si una restauracion no sale como esperabas.</div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="info-box">
+                <i class="bi bi-info-circle-fill"></i>
+                Todavia no hay respaldos generados en la carpeta configurada.
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

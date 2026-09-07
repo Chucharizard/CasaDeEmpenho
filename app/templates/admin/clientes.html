@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .cliente-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .cliente-card:hover {
+        transform: translateY(-3px);
+    }
+    .avatar-circle {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, var(--bs-primary), var(--bs-info));
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    .search-container {
+        position: relative;
+    }
+    .search-container .bi-search {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--color-texto-secundario);
+    }
+    .search-container input {
+        padding-left: 40px;
+        border-radius: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="clientes-container">
+    <!-- Header principal -->
+    <div class="page-header mb-4">
+        <div class="header-content">
+            <h2 class="m-0 fw-bold"><i class="bi bi-people-fill text-primary me-2"></i> Directorio de Clientes</h2>
+            <p class="text-muted mt-1 mb-0">Gestiona y consulta el historial de tu cartera de clientes</p>
+        </div>
+        <div class="header-actions">
+            <a href="{{ url_for('admin.nuevo_prestamo') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i class="bi bi-person-plus"></i> Nuevo Cliente / Préstamo
+            </a>
+        </div>
+    </div>
+
+    <!-- Cards de estadísticas -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-people"></i></div>
+            <div class="stat-info">
+                <h3>Total Clientes</h3>
+                <div class="stat-numbers"><span class="stat-count">{{ total_clientes }}</span></div>
+            </div>
+        </div>
+
+        <div class="stat-card active">
+            <div class="stat-icon"><i class="bi bi-person-check-fill text-success"></i></div>
+            <div class="stat-info">
+                <h3>Clientes Activos</h3>
+                <div class="stat-numbers"><span class="stat-count">{{ clientes_activos }}</span></div>
+                <div class="stat-amount mt-1">Con préstamos vigentes</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-file-earmark-text"></i></div>
+            <div class="stat-info">
+                <h3>Préstamos Totales</h3>
+                <div class="stat-numbers"><span class="stat-count">{{ total_prestamos }}</span></div>
+            </div>
+        </div>
+
+        <div class="stat-card total">
+            <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+            <div class="stat-info">
+                <h3>Capital Colocado</h3>
+                <div class="stat-numbers"><span class="stat-count">Bs. {{ "%.2f"|format(monto_total) }}</span></div>
+                <div class="stat-amount mt-1">Histórico global</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buscador y Filtros -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body p-4">
+            <div class="row align-items-center g-3">
+                <div class="col-md-4">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-search text-primary me-2"></i> Buscar y Filtrar</h5>
+                </div>
+                <div class="col-md-4">
+                    <div class="search-container">
+                        <i class="bi bi-search"></i>
+                        <input type="text" 
+                               id="searchCliente" 
+                               class="form-control bg-light border-0" 
+                               placeholder="Buscar por cédula, nombre o teléfono..." 
+                               oninput="filtrarClientes()"
+                               autocomplete="off">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-0"><i class="bi bi-filter-circle"></i></span>
+                        <select class="form-select bg-light border-0" id="sortCliente" onchange="ordenarClientes()">
+                            <option value="alfabetico">Orden Alfabético (A-Z)</option>
+                            <option value="mas_prestamos">Mayor Cantidad de Préstamos</option>
+                            <option value="mayor_monto">Mayor Monto Movido</option>
+                            <option value="solo_activos">Mostrar solo Clientes Activos</option>
+                            <option value="solo_vip">Mostrar solo Clientes VIP</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <small class="text-muted mt-2 d-block text-end"><i class="bi bi-info-circle"></i> Atajo: Presiona Ctrl+K para buscar directamente</small>
+        </div>
+    </div>
+
+    <!-- Grid de Clientes -->
+    <div class="row g-4" id="clientesGrid">
+        {% for cliente in clientes %}
+            {% set num_prestamos = cliente.prestamos|length %}
+            {% set activos = cliente.prestamos|selectattr('estado', 'equalto', 'activo')|list|length %}
+            {% set total_prestado_cliente = cliente.prestamos|sum(attribute='monto_prestado') %}
+            
+        <div class="col-md-6 col-lg-4 cliente-card-wrapper" 
+             data-ci="{{ cliente.ci }}" 
+             data-nombre="{{ cliente.nombre|lower }}"
+             data-telefono="{{ cliente.telefono or '' }}"
+             data-prestamos="{{ num_prestamos }}"
+             data-monto="{{ total_prestado_cliente }}"
+             data-activos="{{ activos }}"
+             data-vip="{{ 1 if num_prestamos >= 5 else 0 }}">
+             
+            <div class="card h-100 border-0 shadow-sm cliente-card">
+                <div class="card-body p-4">
+                    <!-- Cabecera de tarjeta: Status y Badge VIP -->
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        {% if activos > 0 %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-circle-fill small me-1"></i> Activo</span>
+                        {% else %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary"><i class="bi bi-circle small me-1"></i> Inactivo</span>
+                        {% endif %}
+
+                        <!-- Lógica de Badges (VIP, Frecuente, Regular) -->
+                        {% if num_prestamos >= 5 %}
+                            <span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-star-fill"></i> VIP</span>
+                        {% elif num_prestamos >= 2 %}
+                            <span class="badge bg-info text-dark"><i class="bi bi-award-fill"></i> Frecuente</span>
+                        {% else %}
+                            <span class="badge bg-light text-secondary border"><i class="bi bi-person"></i> Nuevo</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Info principal -->
+                    <div class="d-flex align-items-center mb-4">
+                        <div class="avatar-circle me-3 flex-shrink-0">
+                            {{ cliente.nombre[0].upper() }}
+                        </div>
+                        <div>
+                            <h5 class="fw-bold mb-1 text-truncate" style="max-width: 200px;" title="{{ cliente.nombre }}">{{ cliente.nombre }}</h5>
+                            <p class="text-muted mb-0"><i class="bi bi-credit-card-2-front"></i> {{ cliente.ci }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Detalles -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="bi bi-telephone"></i> Teléfono</span>
+                            <span class="fw-bold">{{ cliente.telefono or 'No registrado' }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="bi bi-briefcase"></i> Préstamos Totales</span>
+                            <span class="fw-bold">{{ num_prestamos }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="bi bi-check-circle"></i> Préstamos Activos</span>
+                            <span class="fw-bold text-success">{{ activos }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between pt-1">
+                            <span class="text-muted"><i class="bi bi-cash"></i> Histórico Movido</span>
+                            <span class="fw-bold text-primary">Bs. {{ "%.2f"|format(total_prestado_cliente) }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Acciones -->
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('admin.dashboard', search_ci=cliente.ci) }}" class="btn btn-outline-primary">
+                            <i class="bi bi-graph-up-arrow me-1"></i> Ver Historial
+                        </a>
+                        <a href="{{ url_for('admin.nuevo_prestamo') }}?ci={{ cliente.ci }}" class="btn btn-light text-primary border">
+                            <i class="bi bi-plus-circle me-1"></i> Nuevo Préstamo
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Mensaje sin resultados (oculto por defecto) -->
+    <div class="text-center p-5 text-muted d-none" id="noResults">
+        <i class="bi bi-search display-1 opacity-25 mb-3 d-block"></i>
+        <h3 class="fw-bold">No se encontraron clientes</h3>
+        <p>Intenta con otros términos de búsqueda (Cédula, Nombre o Teléfono).</p>
+    </div>
+</div>
+
+<script>
+    function aplicarFiltrosYOrden() {
+        const searchValue = document.getElementById('searchCliente').value.toLowerCase().trim();
+        const sortValue = document.getElementById('sortCliente').value;
+        const grid = document.getElementById('clientesGrid');
+        const clientesCards = Array.from(document.querySelectorAll('.cliente-card-wrapper'));
+        const noResults = document.getElementById('noResults');
+        let visibleCount = 0;
+
+        // Primero ordenamos el array de nodos
+        clientesCards.sort((a, b) => {
+            if (sortValue === 'alfabetico' || sortValue === 'solo_activos' || sortValue === 'solo_vip') {
+                return a.dataset.nombre.localeCompare(b.dataset.nombre);
+            } else if (sortValue === 'mas_prestamos') {
+                return parseInt(b.dataset.prestamos) - parseInt(a.dataset.prestamos);
+            } else if (sortValue === 'mayor_monto') {
+                return parseFloat(b.dataset.monto) - parseFloat(a.dataset.monto);
+            }
+            return 0;
+        });
+
+        // Re-adjuntamos los nodos en el orden correcto
+        clientesCards.forEach(card => grid.appendChild(card));
+
+        // Luego filtramos (visibilidad)
+        clientesCards.forEach(card => {
+            const ci = card.getAttribute('data-ci').toLowerCase();
+            const nombre = card.getAttribute('data-nombre');
+            const telefono = card.getAttribute('data-telefono').toLowerCase();
+            const activos = parseInt(card.getAttribute('data-activos'));
+            const esVip = parseInt(card.getAttribute('data-vip'));
+            
+            let coincideBusqueda = ci.includes(searchValue) || nombre.includes(searchValue) || telefono.includes(searchValue);
+            let pasaFiltroExtra = true;
+            
+            if (sortValue === 'solo_activos' && activos === 0) pasaFiltroExtra = false;
+            if (sortValue === 'solo_vip' && esVip === 0) pasaFiltroExtra = false;
+            
+            if (coincideBusqueda && pasaFiltroExtra) {
+                card.classList.remove('d-none');
+                visibleCount++;
+            } else {
+                card.classList.add('d-none');
+            }
+        });
+
+        // Mostrar mensaje si no hay resultados
+        if (visibleCount === 0) {
+            noResults.classList.remove('d-none');
+        } else {
+            noResults.classList.add('d-none');
+        }
+    }
+
+    function filtrarClientes() {
+        aplicarFiltrosYOrden();
+    }
+    
+    function ordenarClientes() {
+        aplicarFiltrosYOrden();
+    }
+
+    // Atajos de teclado
+    document.addEventListener('keydown', function(e) {
+        const searchInput = document.getElementById('searchCliente');
+        
+        // Ctrl/Cmd + K para focus en búsqueda
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+        
+        // Escape para limpiar búsqueda
+        if (e.key === 'Escape' && searchInput.value !== '') {
+            searchInput.value = '';
+            filtrarClientes();
+        }
+    });
+    
+    // Aplicar orden inicial al cargar la página
+    document.addEventListener('DOMContentLoaded', () => {
+        ordenarClientes();
+    });
+</script>
+{% endblock %}

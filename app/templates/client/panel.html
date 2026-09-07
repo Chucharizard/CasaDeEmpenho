@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="client-panel-container">
+    <!-- Header con información del usuario -->
+    <div class="client-header">
+        <div class="header-content">
+            <div class="welcome-section">
+                <div class="user-avatar">
+                    <i class="bi bi-person-circle"></i>
+                </div>
+                <div class="user-info">
+                    <h2>{{ current_user.nombre }}</h2>
+                    <div class="user-details">
+                        <span><i class="bi bi-credit-card-2-front"></i> CI: {{ current_user.ci }}</span>
+                        <span><i class="bi bi-telephone"></i> {{ current_user.telefono or 'Sin teléfono' }}</span>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-edit-profile" data-bs-toggle="modal" data-bs-target="#editarPerfilModal">
+                <i class="bi bi-pencil-square"></i> Editar Perfil
+            </button>
+        </div>
+    </div>
+
+    <!-- Préstamos Activos (Vista Compacta) -->
+    <div class="loans-section">
+        <div class="section-header">
+            <h3><i class="bi bi-cash-coin"></i> Mis Préstamos Activos</h3>
+            {% if prestamos %}
+                <span class="badge-count">{{ prestamos|length }}</span>
+            {% endif %}
+        </div>
+        
+        {% if prestamos %}
+            <div class="loans-grid">
+                {% for prestamo in prestamos %}
+                <div class="loan-card">
+                    <div class="loan-header">
+                        <div class="loan-date">
+                            <i class="bi bi-calendar3"></i>
+                            <span>{{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</span>
+                        </div>
+                        <span class="loan-status status-{{ prestamo.estado }}">
+                            {{ prestamo.estado|upper }}
+                        </span>
+                    </div>
+                    
+                    <div class="loan-amounts">
+                        <div class="amount-item">
+                            <span class="amount-label">Prestado</span>
+                            <span class="amount-value prestado">Bs. {{ "{:,.2f}".format(prestamo.monto_prestado) }}</span>
+                        </div>
+                        <div class="amount-divider"></div>
+                        <div class="amount-item">
+                            <span class="amount-label">A Pagar</span>
+                            <span class="amount-value total">Bs. {{ "{:,.2f}".format(prestamo.monto_a_pagar) }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="loan-footer">
+                        <span class="interest-rate">
+                            <i class="bi bi-percent"></i> {{ prestamo.interes_mensual }}% mensual
+                        </span>
+                        {% if prestamo.ultimo_pago %}
+                            <span class="last-payment">
+                                <i class="bi bi-check-circle"></i> {{ prestamo.ultimo_pago.strftime('%d/%m') }}
+                            </span>
+                        {% else %}
+                            <span class="no-payment">
+                                <i class="bi bi-exclamation-circle"></i> Sin pagos
+                            </span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Artículos del préstamo -->
+                    {% if prestamo.articulos %}
+                        <div class="loan-articles">
+                            <div class="articles-header">
+                                <i class="bi bi-box-seam"></i> Artículos ({{ prestamo.articulos|length }})
+                            </div>
+                            <div class="articles-list">
+                                {% for articulo in prestamo.articulos %}
+                                <div class="article-item">
+                                    <i class="bi bi-tag"></i>
+                                    <div class="article-info">
+                                        <strong>{{ articulo.nombre }}</strong>
+                                        <small>{{ articulo.descripcion }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No tienes préstamos activos</p>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal Editar Perfil -->
+<div class="modal fade" id="editarPerfilModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-glass">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-gear"></i> Editar Perfil
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('client.actualizar_perfil') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="form-floating mb-3">
+                        <input type="tel" name="telefono" class="form-control" id="telefono" 
+                               value="{{ current_user.telefono }}" placeholder="Teléfono" required>
+                        <label for="telefono">
+                            <i class="bi bi-telephone"></i> Teléfono
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Mensajes Flash -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show flash-message" role="alert">
+                <i class="bi bi-{{ 'check-circle' if category == 'success' else 'info-circle' }}"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+{% endblock %}
+
+{% block styles %}
+
+{% endblock %}

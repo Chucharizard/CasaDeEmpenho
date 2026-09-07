@@ -1,0 +1,157 @@
+from app.utils import get_bolivia_time
+
+from dateutil.relativedelta import relativedelta
+from flask import jsonify, render_template, request, session
+from flask_login import login_required
+from sqlalchemy import or_
+from sqlalchemy.orm import contains_eager
+
+from app import db
+from app.models import Articulo, Prestamo, Usuario
+from app.routes.admin_shared import admin, admin_required
+
+
+@admin.route('/dashboard')
+@login_required
+@admin_required
+def dashboard():
+    search_ci = (request.args.get('search_ci') or '').strip()
+    search_nombre = (request.args.get('search_nombre') or '').strip()
+    search_cliente = (request.args.get('search_cliente') or '').strip()
+    estado_filter = request.args.get('estado', 'todos')
+    order = request.args.get('order', 'fecha_desc')
+
+    if search_cliente:
+        search_ci = search_cliente
+        search_nombre = search_cliente
+
+    query = Prestamo.query.join(Usuario).outerjoin(Articulo).options(contains_eager(Prestamo.usuario), contains_eager(Prestamo.articulos))
+
+    if search_ci:
+        query = query.filter(
+            or_(
+                Usuario.ci.ilike(f'%{search_ci}%'),
+                Usuario.nombre.ilike(f'%{search_ci}%'),
+                Articulo.nombre.ilike(f'%{search_ci}%'),
+            )
+        )
+    if search_nombre and search_nombre != search_ci:
+        query = query.filter(
+            or_(
+                Usuario.nombre.ilike(f'%{search_nombre}%'),
+                Articulo.nombre.ilike(f'%{search_nombre}%'),
+            )
+        )
+
+    hoy = get_bolivia_time()
+    limite_vencimiento = hoy + relativedelta(days=7)
+
+    if estado_filter == 'por_vencer':
+        query = query.filter(
+            Prestamo.estado == 'activo',
+            Prestamo.fecha_finalizacion <= limite_vencimiento,
+            Prestamo.fecha_finalizacion >= hoy,
+        )
+    elif estado_filter != 'todos':
+        query = query.filter(Prestamo.estado == estado_filter)
+
+    query = query.filter(Prestamo.tipo_prestamo == 'prendario')
+
+    if order == 'fecha_asc':
+        query = query.order_by(Prestamo.fecha_inicio.asc())
+    elif order == 'monto_desc':
+        query = query.order_by(Prestamo.monto_prestado.desc())
+    elif order == 'monto_asc':
+        query = query.order_by(Prestamo.monto_prestado.asc())
+    elif order == 'nombre_asc':
+        query = query.order_by(Usuario.nombre.asc())
+    elif order == 'nombre_desc':
+        query = query.order_by(Usuario.nombre.desc())
+    else:
+        query = query.order_by(Prestamo.fecha_inicio.desc())
+
+    # Actualización por lotes optimizada en la base de datos para préstamos vencidos
+    actualizados_count = Prestamo.query.filter(
+        Prestamo.estado == 'activo',
+        Prestamo.fecha_finalizacion < hoy
+    ).update({Prestamo.estado: 'retencion'}, synchronize_session=False)
+
+    if actualizados_count > 0:
+        db.session.commit()
+
+    prestamos = query.all()
+    
+    # Contar préstamos por vencer en memoria
+    prestamos_por_vencer_count = sum(
+        1 for p in prestamos
+        if p.estado == 'activo' and hoy <= p.fecha_finalizacion <= limite_vencimiento
+    )
+
+    totales = {}
+    for estado in ['activo', 'retencion']:
+        estado_prestamos = Prestamo.query.filter_by(estado=estado, tipo_prestamo='prendario').all()
+        totales[estado] = {
+            'cantidad': len(estado_prestamos),
+            'total': sum(item.monto_prestado for item in estado_prestamos),
+        }
+
+    pdf_prestamo_id = session.pop('pdf_prestamo_id', None) or session.pop('pdf_prestamo_anterior_id', None)
+
+    return render_template(
+        'admin/dashboard.html',
+        prestamos=prestamos,
+        hoy=hoy,
+        total_activos=totales['activo']['total'],
+        total_retencion=totales['retencion']['total'],
+        total_prestado=totales['activo']['total'] + totales['retencion']['total'],
+        count_activos=totales['activo']['cantidad'],
+        count_retencion=totales['retencion']['cantidad'],
+        count_total=totales['activo']['cantidad'] + totales['retencion']['cantidad'],
+        pdf_prestamo_id=pdf_prestamo_id,
+        search_ci=search_ci,
+        search_nombre=search_nombre,
+        estado_filter=estado_filter,
+        order=order,
+        prestamos_por_vencer=prestamos_por_vencer_count,
+    )
+
+
+@admin.route('/clientes')
+@login_required
+@admin_required
+def clientes():
+    clientes_list = Usuario.query.filter_by(es_admin=False).all()
+    total_clientes = len(clientes_list)
+    clientes_activos = sum(1 for cliente in clientes_list if any(prestamo.estado == 'activo' for prestamo in cliente.prestamos))
+    total_prestamos = sum(len(cliente.prestamos) for cliente in clientes_list)
+    monto_total = sum(sum(prestamo.monto_prestado for prestamo in cliente.prestamos) for cliente in clientes_list)
+
+    return render_template(
+        'admin/clientes.html',
+        clientes=clientes_list,
+        total_clientes=total_clientes,
+        clientes_activos=clientes_activos,
+        total_prestamos=total_prestamos,
+        monto_total=monto_total,
+    )
+
+
+@admin.route('/api/buscar-usuario/<ci>')
+@login_required
+@admin_required
+def buscar_usuario_por_ci(ci):
+    usuario = Usuario.query.filter_by(ci=ci).first()
+    if usuario:
+        total_prestamos = len(usuario.prestamos)
+        prestamos_activos = sum(1 for prestamo in usuario.prestamos if prestamo.estado == 'activo')
+        return jsonify({
+            'encontrado': True,
+            'ci': usuario.ci,
+            'nombre': usuario.nombre,
+            'telefono': usuario.telefono or '',
+            'total_prestamos': total_prestamos,
+            'mensaje': f'Cliente encontrado con {total_prestamos} prestamo(s)',
+            'prestamos_activos': prestamos_activos,
+        })
+
+    return jsonify({'encontrado': False, 'mensaje': 'Cliente nuevo - Complete los datos'})

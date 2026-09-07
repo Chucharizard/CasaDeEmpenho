@@ -1,0 +1,17 @@
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+build/
+dist/
+uploads/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.env
+.secret_key
+.admin_url_key
+.claude/
+.vscode/
+.idea/

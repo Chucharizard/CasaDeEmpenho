@@ -1,0 +1,142 @@
+/* ==========================================================================
+   Corporate Theme - ISO 25010 (Usabilidad, Accesibilidad y Mantenibilidad)
+   ========================================================================== */
+
+:root {
+    /* Paleta Corporativa */
+    --bg-corporativo: #f8fafc;        /* Gris muy claro para el fondo */
+    --bg-tarjeta: #ffffff;            /* Blanco puro para tarjetas/formularios */
+    --bg-sidebar: #1e293b;            /* Dark Slate para el menú lateral */
+    --bg-sidebar-hover: #334155;
+    
+    /* Textos */
+    --color-texto-principal: #0f172a; /* Casi negro para legibilidad perfecta */
+    --color-texto-secundario: #475569;/* Gris medio para descripciones */
+    --color-texto-sidebar: #f8fafc;
+    
+    /* Acentos */
+    --primario: #10b981;              /* Verde esmeralda (Éxito/Acciones principales) */
+    --primario-hover: #059669;
+    --secundario: #3b82f6;            /* Azul (Información/Acciones secundarias) */
+    --secundario-hover: #2563eb;
+    
+    /* Estados */
+    --exito: #22c55e;
+    --peligro: #ef4444;
+    --peligro-hover: #dc2626;
+    --peligro-bg: #fee2e2;
+    --alerta: #f59e0b;
+    
+    /* Estructura */
+    --borde: #cbd5e1;                 /* Borde un poco más definido para dar nitidez */
+    --radio-tarjeta: 12px;
+    --radio-boton: 8px;
+    --sombra-suave: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.03); /* Más nítida y limpia */
+    --sombra-elevada: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+    
+    /* Accesibilidad */
+    --anillo-foco: 0 0 0 3px rgba(16, 185, 129, 0.35);
+}
+
+/* ==========================================================================
+   RESETEOS GLOBALES
+   ========================================================================== */
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--bg-corporativo) !important;
+    color: var(--color-texto-principal) !important;
+}
+
+/* ==========================================================================
+   COMPONENTES
+   ========================================================================== */
+.card, .form-card {
+    background-color: var(--bg-tarjeta) !important;
+    border: 1px solid var(--borde) !important;
+    box-shadow: var(--sombra-suave) !important;
+    border-radius: var(--radio-tarjeta) !important;
+    padding: 1.5rem !important; /* Más espacio para respirar */
+    transition: box-shadow 0.25s ease-in-out, transform 0.25s ease-in-out !important;
+}
+
+.card:hover, .form-card:hover {
+    box-shadow: var(--sombra-elevada) !important;
+}
+
+.table {
+    background-color: var(--bg-tarjeta);
+    color: var(--color-texto-principal) !important;
+}
+
+.table th {
+    background-color: #f1f5f9 !important; /* Cabecera de tabla diferenciada */
+    color: var(--color-texto-secundario) !important;
+    border-bottom: 2px solid var(--borde) !important;
+}
+
+.table td {
+    border-bottom: 1px solid var(--borde) !important;
+    vertical-align: middle;
+}
+
+/* Controles de Formulario */
+.form-control {
+    border: 1px solid var(--borde) !important;
+    color: var(--color-texto-principal) !important;
+    background-color: #ffffff !important;
+}
+
+.form-control:focus {
+    border-color: var(--primario) !important;
+    box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.25) !important;
+}
+
+.input-group-text {
+    background-color: #f1f5f9 !important;
+    border: 1px solid var(--borde) !important;
+    color: var(--color-texto-secundario) !important;
+}
+
+/* Botones re-estilizados usando las variables */
+.btn-glass-primary, .btn-primary {
+    background-color: var(--primario) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: var(--radio-boton) !important;
+    box-shadow: var(--sombra-suave) !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease-in-out !important;
+}
+.btn-glass-primary:hover, .btn-primary:hover {
+    background-color: var(--primario-hover) !important;
+    transform: translateY(-2px);
+    box-shadow: var(--sombra-elevada) !important;
+}
+
+.btn-glass-secondary, .btn-secondary {
+    background-color: #64748b !important;
+    color: white !important;
+    border: none !important;
+    border-radius: var(--radio-boton) !important;
+}
+.btn-glass-secondary:hover, .btn-secondary:hover {
+    background-color: #475569 !important;
+}
+
+.btn-glass-info, .btn-info {
+    background-color: var(--secundario) !important;
+    color: white !important;
+    border: none !important;
+}
+.btn-glass-info:hover, .btn-info:hover {
+    background-color: var(--secundario-hover) !important;
+}
+
+/* Toast Notificaciones */
+.toast-notification {
+    background: var(--bg-tarjeta) !important;
+    color: var(--color-texto-principal) !important;
+    border: 1px solid var(--borde) !important;
+    box-shadow: var(--sombra-elevada) !important;
+    border-left: 4px solid var(--primario) !important;
+}

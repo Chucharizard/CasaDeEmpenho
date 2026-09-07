@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="{{ tema_actual_key }}" data-dark="{{ '1' if tema_actual_dark else '0' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Casa de Empeño</title>
+    <!-- Fuentes y librerias servidas localmente (funcionan sin conexion) -->
+    <link href="{{ url_for('static', filename='vendor/poppins/poppins.css') }}" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <!-- Corporate base theme -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/corporate-theme.css') }}">
+    <!-- Shared components layer -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    
+    <style>
+        :root {
+            {% for key, value in tema_actual_vars.items() %}
+            {{ key }}: {{ value }} !important;
+            {% endfor %}
+        }
+    </style>
+        
+    {% block styles %}
+    
+    {% endblock %}
+</head>
+<body class="preload">
+    <!-- Script para evitar transiciones al cargar (FOUC) -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            setTimeout(function() {
+                document.body.classList.remove('preload');
+            }, 50); // Pequeño retraso para asegurar que el DOM pintó
+        });
+    </script>
+
+    <!-- Toggle button para móvil -->
+    <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="bi bi-list"></i>
+    </button>
+    
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <!-- Script síncrono para colapsar inmediatamente si es necesario -->
+        <script>
+            if (localStorage.getItem('sidebarCollapsed') === 'true' && !window.matchMedia('(max-width: 768px)').matches) {
+                document.getElementById('sidebar').classList.add('collapsed');
+            }
+        </script>
+        
+        
+        <!-- Header del Sidebar -->
+        <div class="sidebar-header">
+            <a href="{{ url_for('public.index') }}" class="sidebar-brand">
+                <i class="bi bi-gem"></i>
+                <span>Casa de Empeño</span>
+            </a>
+            <!-- Botón para colapsar/expandir sidebar -->
+            <button class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+        </div>
+        
+        <!-- Menú de navegación -->
+        <div class="sidebar-menu">
+            {% if current_user.is_authenticated %}
+                {% if current_user.es_admin %}
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.dashboard') }}" class="sidebar-link">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.nuevo_prestamo') }}" class="sidebar-link">
+                            <i class="bi bi-plus-circle"></i>
+                            <span>Nuevo Préstamo</span>
+                        </a>
+                    </div>
+                    
+                    <!-- Nueva Sección: Estados -->
+                    <div class="sidebar-section-label">
+                        <span>Estados de Préstamo</span>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.dashboard', estado='activo') }}" class="sidebar-link status-activo">
+                            <i class="bi bi-play-circle-fill icon-activo"></i>
+                            <span>Activos</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.dashboard', estado='retencion') }}" class="sidebar-link status-retencion">
+                            <i class="bi bi-pause-circle-fill icon-retencion"></i>
+                            <span>En Retención</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.dashboard', estado='finalizado') }}" class="sidebar-link status-finalizado">
+                            <i class="bi bi-check-circle-fill icon-finalizado"></i>
+                            <span>Finalizados</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.dashboard', estado='decomisado') }}" class="sidebar-link status-decomisado">
+                            <i class="bi bi-bag-check-fill icon-decomisado"></i>
+                            <span>Vendidos</span>
+                        </a>
+                    </div>
+
+                    <div class="sidebar-section-label">
+                        <span>Gestión y Otros</span>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.clientes') }}" class="sidebar-link">
+                            <i class="bi bi-person-lines-fill"></i>
+                            <span>Clientes</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.inventario') }}" class="sidebar-link">
+                            <i class="bi bi-box-seam-fill"></i>
+                            <span>Inventario</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.reportes') }}" class="sidebar-link">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            <span>Reportes</span>
+                        </a>
+                    </div>
+                    <div class="sidebar-menu-item">
+                        <a href="{{ url_for('admin.configuracion') }}" class="sidebar-link">
+                            <i class="bi bi-gear-fill"></i>
+                            <span>Configuración</span>
+                        </a>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="sidebar-menu-item">
+                    <a href="{{ url_for('public.index') }}" class="sidebar-link">
+                        <i class="bi bi-house-door"></i>
+                        <span>Inicio</span>
+                    </a>
+                </div>
+                <div class="sidebar-menu-item">
+                    <a href="{{ url_for('auth.login') }}" class="sidebar-link">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                        <span>Iniciar Sesión</span>
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Footer del sidebar con usuario -->
+        {% if current_user.is_authenticated %}
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar">
+                    {{ current_user.nombre[0].upper() }}
+                </div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-name">{{ current_user.nombre }}</div>
+                    <div class="sidebar-user-role">
+                        {% if current_user.es_admin %}Administrador{% else %}Usuario{% endif %}
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="sidebar-link">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Cerrar Sesión</span>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Sistema de Notificaciones Toast Global -->
+        <div id="toast-container" class="toast-container"></div>
+        
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (csrfToken) {
+                document.querySelectorAll('form').forEach(form => {
+                    const method = (form.getAttribute('method') || 'GET').toUpperCase();
+                    if (method !== 'POST') return;
+                    if (form.querySelector('input[name="csrf_token"]')) return;
+
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'csrf_token';
+                    hidden.value = csrfToken;
+                    form.appendChild(hidden);
+                });
+            }
+        });
+    </script>
+
+    <!-- Consumir y mostrar flash messages como toasts -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toasts = {{ messages | tojson }};
+            toasts.forEach(function(item, index) {
+                const category = item[0] || 'info';
+                const message = item[1];
+                setTimeout(function() {
+                    showToast(message, category);
+                }, index * 200);
+            });
+        });
+    </script>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Bootstrap JS y Popper.js (local) -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    
+    <!-- Script para toggle del sidebar -->
+    <script>
+        // Toggle para móvil (abrir/cerrar)
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('active');
+        }
+        function isMobileViewport() {
+            return window.matchMedia('(max-width: 768px)').matches;
+        }
+        // Toggle para colapsar/expandir sidebar (escritorio)
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            if (isMobileViewport()) {
+                return;
+            }
+            sidebar.classList.toggle('collapsed');
+            
+            // Guardar estado en localStorage
+            if (sidebar.classList.contains('collapsed')) {
+                localStorage.setItem('sidebarCollapsed', 'true');
+            } else {
+                localStorage.setItem('sidebarCollapsed', 'false');
+            }
+        }
+
+        // Restaurar estado del sidebar al cargar (móvil)
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            
+            if (isMobileViewport()) {
+                sidebar.classList.remove('collapsed');
+            }
+
+            // Marcar link activo
+            const currentPath = window.location.pathname;
+            const sidebarLinks = document.querySelectorAll('.sidebar-link');
+            
+            sidebarLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+
+            
+
+            window.addEventListener('resize', function() {
+                if (isMobileViewport()) {
+                    sidebar.classList.remove('collapsed');
+                }
+            });
+        });
+
+        
+    </script>
+    
+    
+
+    <!-- Sistema de Toast Notifications Global -->
+    <script>
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            // Iconos según el tipo
+            const icons = {
+                'success': '✅',
+                'error': '❌',
+                'danger': '❌',
+                'warning': '⚠️',
+                'info': 'ℹ️'
+            };
+
+            // Crear toast (sin innerHTML para el mensaje: evita XSS si el
+            // contenido proviene de datos de usuario o de excepciones)
+            const toast = document.createElement('div');
+            toast.className = `toast-notification ${type}`;
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'toast-icon';
+            iconSpan.textContent = icons[type] || icons.info;
+
+            const messageSpan = document.createElement('span');
+            messageSpan.className = 'toast-message';
+            messageSpan.textContent = message;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'toast-close';
+            closeBtn.setAttribute('aria-label', 'Cerrar');
+            closeBtn.addEventListener('click', function() { closeToast(toast); });
+            closeBtn.innerHTML = '<i class="bi bi-x"></i>';
+
+            const progress = document.createElement('div');
+            progress.className = 'toast-progress';
+
+            toast.append(iconSpan, messageSpan, closeBtn, progress);
+
+            container.appendChild(toast);
+
+            // Auto-cerrar después de duration
+            setTimeout(() => {
+                closeToast(toast);
+            }, duration);
+        }
+
+        function closeToast(toast) {
+            if (!toast || toast.classList.contains('closing')) return;
+            toast.classList.add('closing');
+            toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.parentElement.removeChild(toast);
+                }
+            }, 300);
+        }
+    </script>
+</body>
+</html>

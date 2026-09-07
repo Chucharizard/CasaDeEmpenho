@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <!-- Sección de Bienvenida -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold">Bienvenido a <span class="text-primary">Casa de Empeño</span></h1>
+        <p class="lead">Tu solución rápida y confiable para préstamos con garantía.</p>
+        <img src="{{ url_for('static', filename='public/img1.webp') }}" 
+        alt="Imagen Principal" 
+        class="img-fluid rounded shadow" 
+        style="max-height: 300px; object-fit: cover;">   
+    </div>
+    
+
+    <!-- Fecha y Hora Dinámica -->
+    <div class="text-center mb-4">
+        <h4 id="datetime" class="text-secondary"></h4>
+    </div>
+
+    <!-- Sección de Servicios -->
+    <section class="mb-5">
+        <h2 class="text-center mb-4">Nuestros Servicios</h2>
+        <div class="row text-center">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body">
+                        <i class="bi bi-cash-stack display-4 text-primary mb-3"></i>
+                        <h5 class="card-title">Préstamos con Garantía</h5>
+                        <p class="card-text">Préstamos respaldados por tus artículos de valor, con tasas accesibles.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body">
+                        <i class="bi bi-cart4 display-4 text-success mb-3"></i>
+                        <h5 class="card-title">Compra y Venta</h5>
+                        <p class="card-text">Gran selección de artículos de segunda mano en excelente estado.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body">
+                        <i class="bi bi-globe display-4 text-info mb-3"></i>
+                        <h5 class="card-title">Consulta en Línea</h5>
+                        <p class="card-text">Revisa el estado de tus préstamos en cualquier momento y lugar.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contacto -->
+    <section class="text-center">
+        <h2>Contacto</h2>
+        <div class="card shadow-sm mt-3 border-0">
+            <div class="card-body">
+                <p><strong>📧 Correo:</strong> willyguevara048@gmail.com</p>
+                <p><strong>📞 Teléfono:</strong> 74402990</p>
+                <p><strong>⏰ Horario:</strong> Lunes a Viernes, 9:00 AM - 7:00 PM</p>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Script para Fecha y Hora -->
+<script>
+    function updateDateTime() {
+        const date = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        document.getElementById('datetime').textContent = date.toLocaleString('es-ES', options);
+    }
+    setInterval(updateDateTime, 1000); // Actualizar cada segundo
+    updateDateTime();
+</script>
+{% endblock %}

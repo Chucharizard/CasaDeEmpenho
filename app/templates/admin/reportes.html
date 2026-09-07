@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> Volver al Dashboard
+    </a>
+
+    <div class="page-header">
+        <h2><i class="bi bi-graph-up-arrow"></i> Reportes operativos</h2>
+        <p>Resumen de cobranza y prestamos que necesitan seguimiento.</p>
+    </div>
+
+    <div class="stats-grid mb-4">
+        <div class="stat-card active">
+            <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+            <div class="stat-info">
+                <h3>Cobrado hoy</h3>
+                <div class="stat-numbers">
+                    <span class="stat-count">Bs. {{ "%.2f"|format(resumen.cobrado_hoy) }}</span>
+                </div>
+                <div class="stat-amount">{{ resumen.cantidad_pagos_hoy }} pago(s)</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-calendar-month"></i></div>
+            <div class="stat-info">
+                <h3>Cobrado en el mes</h3>
+                <div class="stat-numbers">
+                    <span class="stat-count">Bs. {{ "%.2f"|format(resumen.cobrado_mes) }}</span>
+                </div>
+                <div class="stat-amount">{{ resumen.cantidad_pagos_mes }} pago(s)</div>
+            </div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <div class="stat-info">
+                <h3>Por vencer</h3>
+                <div class="stat-numbers"><span class="stat-count">{{ resumen.prestamos_por_vencer }}</span></div>
+                <div class="stat-amount">Proximos 7 dias</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-info">
+                <h3>Vencidos</h3>
+                <div class="stat-numbers"><span class="stat-count">{{ resumen.prestamos_vencidos }}</span></div>
+                <div class="stat-amount">Requieren seguimiento</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-calendar-event"></i> Prestamos por vencer</h5>
+                    {% if prestamos_por_vencer %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Documento</th>
+                                    <th>Cliente</th>
+                                    <th>Vence</th>
+                                    <th>Dias</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prestamo in prestamos_por_vencer %}
+                                <tr>
+                                    <td><a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}">{{ prestamo.numero_documento }}</a></td>
+                                    <td>{{ prestamo.usuario.nombre }}</td>
+                                    <td>{{ prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</td>
+                                    <td>{{ prestamo.dias_para_vencimiento }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No hay prestamos por vencer en los proximos 7 dias.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-bell"></i> Prestamos vencidos</h5>
+                    {% if prestamos_vencidos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Documento</th>
+                                    <th>Cliente</th>
+                                    <th>Vencio</th>
+                                    <th>Dias</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prestamo in prestamos_vencidos %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}">{{ prestamo.numero_documento }}</a>
+                                    </td>
+                                    <td>{{ prestamo.usuario.nombre }}</td>
+                                    <td>{{ prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</td>
+                                    <td>{{ prestamo.dias_vencido }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No hay prestamos vencidos pendientes.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-cash-coin"></i> Desglose de cobranza mensual</h5>
+                    <div class="config-item">
+                        <div class="label">Pagos por interes</div>
+                        <div class="value">Bs. {{ "%.2f"|format(resumen.pagos_interes_mes) }}</div>
+                    </div>
+                    <div class="config-item">
+                        <div class="label">Pagos totales</div>
+                        <div class="value">Bs. {{ "%.2f"|format(resumen.pagos_total_mes) }}</div>
+                    </div>
+
+                    <hr>
+
+                    <h6 class="mb-3">Pagos registrados hoy</h6>
+                    {% if pagos_hoy %}
+                    <ul class="list-group list-group-flush">
+                        {% for pago in pagos_hoy %}
+                        <li class="list-group-item px-0">
+                            <strong>{{ pago.prestamo.numero_documento }}</strong>
+                            <span class="text-muted"> - {{ pago.fecha_pago.strftime('%H:%M') }}</span>
+                            <div>Bs. {{ "%.2f"|format(pago.monto_pagado) }} ({{ pago.tipo_pago }})</div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted mb-0">Todavia no hay pagos hoy.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-clock-history"></i> Pagos recientes</h5>
+                    {% if pagos_recientes %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Documento</th>
+                                    <th>Tipo</th>
+                                    <th>Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pago in pagos_recientes %}
+                                <tr>
+                                    <td>{{ pago.fecha_pago.strftime('%d/%m %H:%M') }}</td>
+                                    <td>{{ pago.prestamo.numero_documento }}</td>
+                                    <td>{{ pago.tipo_pago|title }}</td>
+                                    <td>Bs. {{ "%.2f"|format(pago.monto_pagado) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No hay pagos registrados todavia.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

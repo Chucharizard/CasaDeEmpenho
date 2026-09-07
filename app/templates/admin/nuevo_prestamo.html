@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <!-- Header Principal -->
+    <div class="form-header-main">
+        <h1>➕ Nuevo Préstamo</h1>
+        <p>Registra un préstamo realizado en la fecha actual</p>
+    </div>
+
+    <div class="form-card card p-4 shadow-sm border-0">
+        <form method="POST" id="prestamoForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <!-- Flash messages ahora se muestran globalmente como toasts en base.html -->
+
+            <div class="form-body row">
+                <!-- Columna izquierda: Cliente y Préstamo -->
+                <div class="client-section col-md-6">
+                    <div class="form-section mb-4">
+                        <h3 class="form-section-title h5 border-bottom pb-2 mb-3">
+                            <i class="bi bi-person-fill"></i> Información del Cliente
+                        </h3>
+                        
+                        <div class="form-group mb-3 position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                                <input type="text" class="form-control" id="ci" name="ci" placeholder="CI del Cliente (ej. 8394503)" required 
+                                       data-bs-toggle="tooltip" data-bs-placement="top" title="Ingresa el Carnet de Identidad sin puntos ni guiones">
+                            </div>
+                            <div class="invalid-feedback"><i class="bi bi-exclamation-triangle"></i> El CI es requerido y debe tener al menos 4 caracteres.</div>
+                        </div>
+
+                        <div class="form-group mb-3 position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                                <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre completo según documento" required
+                                       data-bs-toggle="tooltip" data-bs-placement="top" title="Escribe los nombres y apellidos reales del cliente">
+                            </div>
+                            <div class="invalid-feedback"><i class="bi bi-exclamation-triangle"></i> El nombre es requerido para crear el contrato.</div>
+                        </div>
+
+                        <div class="form-group mb-0 position-relative">
+                            <div class="input-group mb-0">
+                                <span class="input-group-text"><i class="bi bi-telephone-fill"></i></span>
+                                <input type="tel" class="form-control" id="telefono" name="telefono" placeholder="Teléfono" pattern="^\+?[0-9]*$"
+                                       data-bs-toggle="tooltip" data-bs-placement="top" title="Opcional, muy recomendado para contactarlo si se vence el préstamo">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section mb-4">
+                        <h3 class="form-section-title h5 border-bottom pb-2 mb-3">
+                            <i class="bi bi-cash"></i> Detalles del Préstamo
+                        </h3>
+
+                        <div class="form-group mb-3 position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text">Bs.</span>
+                                <input type="number" class="form-control" id="monto" name="monto" step="0.10" min="1" placeholder="Monto mayor a 0" required
+                                       data-bs-toggle="tooltip" data-bs-placement="top" title="Dinero que cobrará el cliente en bolivianos">
+                            </div>
+                            <div class="invalid-feedback"><i class="bi bi-exclamation-octagon"></i> Por favor ingresa un monto numérico mayor a 0.</div>
+                        </div>
+
+                        <!-- Resumen del préstamo con cálculo automático -->
+                        <div id="resumen-prestamo" class="alert alert-success mt-2 d-none">
+                            <div class="d-flex justify-content-between mb-2 text-muted">
+                                <span>💰 Monto prestado:</span>
+                                <span id="resumen-monto" class="text-dark fw-bold">Bs. 0.00</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2 text-muted">
+                                <span>📈 Interés (10%):</span>
+                                <span id="resumen-interes" class="text-warning fw-bold">+ Bs. 0.00</span>
+                            </div>
+                            <div class="border-top pt-2 mt-2">
+                                <div class="d-flex justify-content-between fs-5 fw-bold">
+                                    <span>✅ Total a pagar:</span>
+                                    <span id="resumen-total" class="text-success">Bs. 0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="checkbox" id="imprimir_documento" name="imprimir_documento" checked>
+                            <label class="form-check-label" for="imprimir_documento">
+                                📄 Generar documento legal
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Columna derecha: Artículo -->
+                <div class="article-section col-md-6">
+                    <div class="form-section h-100 mb-4">
+                        <h3 class="form-section-title h5 border-bottom pb-2 mb-3">
+                            <i class="bi bi-box-seam"></i> Información del Artículo
+                        </h3>
+
+                        <div class="form-group mb-3 position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-tag-fill"></i></span>
+                                <input type="text" class="form-control" id="articulo_nombre" name="articulo_nombre" placeholder="Objeto (ej. TV Samsung 50'')" required
+                                       data-bs-toggle="tooltip" data-bs-placement="top" title="Nombre general con marca. Ayuda a distinguir el objeto rápido.">
+                            </div>
+                            <div class="invalid-feedback"><i class="bi bi-exclamation-triangle"></i> El nombre del artículo es obligatorio.</div>
+                        </div>
+
+                        <div class="form-group mb-0 position-relative">
+                            <label for="articulo_descripcion" class="form-label mb-1">📝 Detalles y Características</label>
+                            <textarea class="form-control" id="articulo_descripcion" name="articulo_descripcion" rows="6" placeholder="Describe estado, accesorios (cargador), rayones o contraseñas..." required
+                                      data-bs-toggle="tooltip" data-bs-placement="top" title="Evita problemas legales, sé muy específico sobre rayones y accesorios"></textarea>
+                            <div class="invalid-feedback"><i class="bi bi-shield-exclamation"></i> Para protección legal, detalla el estado. No lo dejes vacío.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-footer d-flex justify-content-between align-items-center mt-4 border-top pt-3">
+                <a href="{{ url_for('admin.prestamo_anterior') }}" class="btn btn-info text-white">
+                    <i class="bi bi-clock-history"></i> Préstamo Anterior
+                </a>
+                <div class="d-flex gap-3">
+                    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </a>
+                    <button type="button" class="btn btn-primary" onclick="confirmarEnvio()">
+                        <i class="bi bi-check-circle"></i> Crear Préstamo
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+<script>
+    // ============================================
+    // CONSTANTES
+    // ============================================
+    const INTERES_MENSUAL = 10; // 10% de interés mensual
+
+    // ============================================
+    // CÁLCULO AUTOMÁTICO DEL TOTAL
+    // ============================================
+    document.getElementById('monto').addEventListener('input', function() {
+        calcularTotal();
+    });
+
+    function calcularTotal() {
+        const monto = parseFloat(document.getElementById('monto').value) || 0;
+        const resumenDiv = document.getElementById('resumen-prestamo');
+        
+        if (monto > 0) {
+            const interes = monto * (INTERES_MENSUAL / 100);
+            const total = monto + interes;
+            
+            document.getElementById('resumen-monto').textContent = `Bs. ${monto.toFixed(2)}`;
+            document.getElementById('resumen-interes').textContent = `+ Bs. ${interes.toFixed(2)}`;
+            document.getElementById('resumen-total').textContent = `Bs. ${total.toFixed(2)}`;
+            
+            resumenDiv.classList.remove('d-none');
+        } else {
+            resumenDiv.classList.add('d-none');
+        }
+    }
+
+    // ============================================
+    // AUTOCOMPLETADO POR CI
+    // ============================================
+    let timeoutBusqueda = null;
+    let clienteExistente = false;
+    
+    document.getElementById('ci').addEventListener('input', function() {
+        const ci = this.value.trim();
+        
+        // Limpiar timeout anterior para debounce
+        if (timeoutBusqueda) {
+            clearTimeout(timeoutBusqueda);
+        }
+        
+        // Remover indicador de cliente existente si el CI cambia
+        const indicadorExistente = document.getElementById('cliente-existente-badge');
+        if (indicadorExistente) {
+            indicadorExistente.remove();
+        }
+        
+        // Solo buscar si el CI tiene al menos 5 caracteres
+        if (ci.length >= 5) {
+            timeoutBusqueda = setTimeout(() => {
+                buscarUsuarioPorCI(ci);
+            }, 400); // Esperar 400ms después de que el usuario deje de escribir
+        } else {
+            // Si el CI es muy corto, limpiar campos y permitir edición
+            clienteExistente = false;
+            document.getElementById('nombre').readOnly = false;
+            document.getElementById('nombre').classList.remove('bg-success', 'bg-opacity-10');
+        }
+    });
+    
+        async function buscarUsuarioPorCI(ci) {
+            try {
+                const buscarUsuarioUrl = "{{ url_for('admin.buscar_usuario_por_ci', ci='__CI__') }}".replace('__CI__', encodeURIComponent(ci));
+                const response = await fetch(buscarUsuarioUrl);
+                const data = await response.json();
+            
+            if (data.encontrado) {
+                // Cliente existente - autocompletar campos
+                clienteExistente = true;
+                
+                document.getElementById('nombre').value = data.nombre;
+                document.getElementById('nombre').readOnly = true;
+                document.getElementById('nombre').classList.add('bg-success', 'bg-opacity-10');
+                
+                if (data.telefono) {
+                    document.getElementById('telefono').value = data.telefono;
+                }
+                
+                // Mostrar indicador de cliente existente
+                mostrarIndicadorClienteExistente(data);
+            } else {
+                // Cliente nuevo - permitir edición normal
+                clienteExistente = false;
+                document.getElementById('nombre').readOnly = false;
+                document.getElementById('nombre').classList.remove('bg-success', 'bg-opacity-10');
+            }
+        } catch (error) {
+            console.error('Error buscando usuario:', error);
+        }
+    }
+    
+    function mostrarIndicadorClienteExistente(data) {
+        // Remover indicador anterior si existe
+        const indicadorExistente = document.getElementById('cliente-existente-badge');
+        if (indicadorExistente) {
+            indicadorExistente.remove();
+        }
+        
+        // Determinar el color según cantidad de préstamos
+        let colorClassBootstrap = 'success'; // Verde por defecto
+        let icono = '✅';
+        let mensaje = 'Cliente conocido';
+        
+        if (data.total_prestamos >= 5) {
+            colorClassBootstrap = 'warning'; // Amarillo - cliente frecuente
+            icono = '⭐';
+            mensaje = '¡Cliente frecuente!';
+        }
+        if (data.total_prestamos >= 10) {
+            colorClassBootstrap = 'primary'; // Púrpura - cliente VIP
+            icono = '👑';
+            mensaje = '¡Cliente VIP!';
+        }
+        
+        // Crear nuevo indicador más llamativo
+        const badge = document.createElement('div');
+        badge.id = 'cliente-existente-badge';
+
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${colorClassBootstrap} mt-3 shadow-sm border-${colorClassBootstrap} rounded-3`;
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'd-flex align-items-center gap-2 mb-2';
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'fs-3';
+        iconSpan.textContent = icono;
+
+        const infoDiv = document.createElement('div');
+
+        const mensajeDiv = document.createElement('div');
+        mensajeDiv.className = `text-${colorClassBootstrap} fw-bold fs-5`;
+        mensajeDiv.textContent = mensaje;
+
+        const ciDiv = document.createElement('div');
+        ciDiv.className = 'text-muted small';
+        ciDiv.textContent = 'CI: ';
+        const ciText = document.createTextNode(data.ci);
+        ciDiv.appendChild(ciText);
+
+        infoDiv.appendChild(mensajeDiv);
+        infoDiv.appendChild(ciDiv);
+        headerDiv.appendChild(iconSpan);
+        headerDiv.appendChild(infoDiv);
+
+        const statsDiv = document.createElement('div');
+        statsDiv.className = 'bg-dark bg-opacity-10 rounded p-2 mt-2';
+
+        const statsRow = document.createElement('div');
+        statsRow.className = 'd-flex justify-content-between align-items-center';
+
+        const statsLabel = document.createElement('span');
+        statsLabel.className = 'text-muted';
+        statsLabel.textContent = '📋 Préstamos anteriores:';
+
+        const statsBadge = document.createElement('span');
+        statsBadge.className = `badge bg-${colorClassBootstrap} text-dark fs-6 rounded-pill`;
+        statsBadge.textContent = data.total_prestamos;
+
+        statsRow.appendChild(statsLabel);
+        statsRow.appendChild(statsBadge);
+        statsDiv.appendChild(statsRow);
+
+        alertDiv.appendChild(headerDiv);
+        alertDiv.appendChild(statsDiv);
+        badge.appendChild(alertDiv);
+        
+        // Insertar después del campo de teléfono
+        const campoTelefono = document.getElementById('telefono').closest('.input-group');
+        campoTelefono.parentNode.insertBefore(badge, campoTelefono.nextSibling);
+        
+        // Mostrar también un toast de notificación
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: `${icono} ${data.nombre}`,
+            text: `${data.total_prestamos} préstamo(s) registrado(s)`,
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+        });
+    }
+
+    // ============================================
+    // VALIDACIÓN INTERACTIVA ISO 25010
+    // ============================================
+    const requiredInputs = document.querySelectorAll('input[required], textarea[required]');
+    
+    // Inicializar tooltips de Bootstrap
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    requiredInputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            if (this.checkValidity() && (this.id !== 'ci' || this.value.length >= 4)) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+        
+        // Remover error al comenzar a escribir
+        input.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid')) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
+
+    // ============================================
+    // CONFIRMACIÓN DE ENVÍO
+    // ============================================
+    function confirmarEnvio() {
+        const form = document.getElementById('prestamoForm');
+        let isValid = true;
+        
+        // Validar todos los campos programáticamente y aplicar clases visuales
+        requiredInputs.forEach(input => {
+            if (!input.checkValidity() || (input.id === 'ci' && input.value.length < 4)) {
+                input.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
+            }
+        });
+
+        if (!isValid) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Información incompleta',
+                text: 'Por favor, revisa los campos marcados en rojo antes de proceder. Es vital para prevenir errores.',
+                confirmButtonColor: '#ef4444'
+            });
+            // Hacer scroll suave hacia el primer error
+            document.querySelector('.is-invalid').scrollIntoView({behavior: 'smooth', block: 'center'});
+            return;
+        }
+
+        const monto = parseFloat(document.getElementById('monto').value) || 0;
+        const total = monto * 1.10; // Monto + 10% interés
+        
+        Swal.fire({
+            title: '¿Confirmar préstamo?',
+            html: `
+                <div class="text-start p-3">
+                    <p class="mb-2">💰 <strong>Monto:</strong> Bs. ${monto.toFixed(2)}</p>
+                    <p class="mb-2">📈 <strong>Interés (10%):</strong> Bs. ${(monto * 0.10).toFixed(2)}</p>
+                    <hr class="my-3">
+                    <p class="fs-5 text-primary"><strong>✅ Total a cobrar: Bs. ${total.toFixed(2)}</strong></p>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sí, crear préstamo',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('prestamoForm').submit();
+            }
+        });
+    }
+
+    // Auto-descargar PDF si hay uno pendiente
+    {% if pdf_prestamo_id %}
+    document.addEventListener('DOMContentLoaded', function() {
+        // Pequeño delay para que la página cargue primero
+        setTimeout(function() {
+            // Crear un iframe oculto para descargar sin cambiar de página
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = "{{ url_for('admin.descargar_documento', prestamo_id=pdf_prestamo_id) }}";
+            document.body.appendChild(iframe);
+            
+            // Limpiar después de unos segundos
+            setTimeout(function() {
+                document.body.removeChild(iframe);
+            }, 5000);
+        }, 500);
+    });
+    {% endif %}
+</script>
+{% endblock %}

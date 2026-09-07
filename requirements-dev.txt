@@ -1,0 +1,5 @@
+# Dependencias de desarrollo y testing
+# Instalar con: pip install -r requirements-dev.txt
+
+pytest>=8.0
+pytest-flask>=1.3

@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block styles %}
+{{ super() }}
+
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Header con botón mejorado -->
+    <div class="dashboard-header">
+        <div class="header-content">
+            <h2><i class="bi bi-grid-fill"></i> Panel de Control</h2>
+            <p class="mb-0">Sistema de Gestión de Préstamos y Empeños</p>
+        </div>
+        <div class="header-actions">
+            <a href="{{ url_for('admin.inventario') }}" class="btn-nuevo-prestamo btn-alt-violet">
+                <i class="bi bi-box-seam"></i>
+                <span>Inventario</span>
+            </a>
+            <a href="{{ url_for('admin.nuevo_prestamo') }}" class="btn-nuevo-prestamo">
+                <i class="bi bi-plus-circle"></i>
+                <span>Nuevo Préstamo</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Cards de estadísticas actualizadas -->
+    <div class="stats-grid">
+        <div class="stat-card active">
+            <div class="stat-icon">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Préstamos Activos</h3>
+                <div class="stat-numbers">
+                    <span class="stat-count">{{ count_activos }}</span>
+                    <span class="stat-amount">Bs. {{ "%.2f"|format(total_activos) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card warning">
+            <div class="stat-icon">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <div class="stat-info">
+                <h3>En Retención</h3>
+                <div class="stat-numbers">
+                    <span class="stat-count">{{ count_retencion }}</span>
+                    <span class="stat-amount">Bs. {{ "%.2f"|format(total_retencion) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card total">
+            <div class="stat-icon">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+            <div class="stat-info">
+                <h3>Total Prestado</h3>
+                <div class="stat-numbers">
+                    <span class="stat-count">{{ count_total }}</span>
+                    <span class="stat-amount">Bs. {{ "%.2f"|format(total_prestado) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filter-section">
+        <div class="filter-header">
+            <h5>
+                <i class="bi bi-funnel-fill"></i>
+                Filtros y Búsqueda
+            </h5>
+        </div>
+        <div class="filter-body">
+            <form id="searchForm" class="row g-3">
+                <!-- Campo unificado de búsqueda -->
+                <div class="col-md-6">
+                    <label for="search_cliente" class="form-label">
+                        <i class="bi bi-search"></i>
+                        Buscar Cliente
+                    </label>
+                    <div class="input-group-search-dashboard">
+                        <span class="search-icon-dashboard">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control form-control-search-dashboard" 
+                               id="search_cliente" 
+                               name="search_cliente" 
+                               value="{{ search_ci or search_nombre }}" 
+                               placeholder="Busca por CI, Nombre o Artículo..."
+                               autocomplete="off"
+                               oninput="busquedaEnTiempoReal()">
+                        <button type="button" 
+                                class="btn-clear-dashboard" 
+                                onclick="limpiarBusquedaCliente()"
+                                title="Limpiar búsqueda">
+                            <i class="bi bi-x-circle-fill"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        <i class="bi bi-lightbulb"></i>
+                        Escribe cualquier parte del CI, nombre del cliente o artículo
+                    </small>
+                </div>
+                
+                <!-- Filtro de estado -->
+                <div class="col-md-3">
+                    <label for="estado" class="form-label">
+                        <i class="bi bi-funnel"></i>
+                        Estado del Préstamo
+                    </label>
+                    <select class="form-select" id="estado" name="estado" onchange="busquedaEnTiempoReal()">
+                        <option value="todos" {% if estado_filter == 'todos' %}selected{% endif %}>📋 Todos</option>
+                        <option value="activo" {% if estado_filter == 'activo' %}selected{% endif %}>✅ Activo</option>
+                        <option value="por_vencer" {% if estado_filter == 'por_vencer' %}selected{% endif %}>⏳ Por Vencer (7 días)</option>
+                        <option value="retencion" {% if estado_filter == 'retencion' %}selected{% endif %}>⚠️ En Retención</option>
+                        <option value="finalizado" {% if estado_filter == 'finalizado' %}selected{% endif %}>✔️ Finalizado</option>
+                        <option value="decomisado" {% if estado_filter == 'decomisado' %}selected{% endif %}>❌ Decomisado</option>
+                    </select>
+                </div>
+                
+                <!-- Botones de acción -->
+                <div class="col-md-3">
+                    <label class="form-label hidden-label">-</label>
+                    <button type="button" class="btn btn-secondary w-100" id="clearFilters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        Limpiar
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Botón de respaldo separado -->
+            <div class="mt-3 pt-3 section-separator">
+                <form action="{{ url_for('admin.hacer_respaldo') }}" method="POST" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-cloud-download"></i>
+                        Crear Respaldo Manual
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agregar un contenedor para la tabla -->
+    <div id="tableContainer">
+        
+        <!-- Tarjeta de Alerta: Préstamos por Vencer -->
+        {% if prestamos_por_vencer > 0 %}
+        <div class="alert alert-warning d-flex align-items-center justify-content-between mb-4 shadow-sm" role="alert" style="border-radius: 12px; border-left: 5px solid #ffc107;">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-warning"></i>
+                <strong>¡Atención proactiva!</strong> Tienes <strong>{{ prestamos_por_vencer }}</strong> préstamo(s) activo(s) que vencen en los próximos 7 días.
+            </div>
+            <button onclick="document.getElementById('estado').value='por_vencer'; busquedaEnTiempoReal();" class="btn btn-sm btn-warning fw-bold text-dark border-0 shadow-sm" style="border-radius: 8px;">
+                Ver próximos a vencer
+            </button>
+        </div>
+        {% endif %}
+
+        <!-- Tabla de préstamos mejorada -->
+        <div class="table-container">
+            <div class="table-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5><i class="bi bi-table"></i> Préstamos Recientes</h5>
+                    <form method="GET" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center">
+                        <!-- Mantener los filtros actuales en el formulario -->
+                        <input type="hidden" name="search_cliente" value="{{ search_ci or search_nombre }}">
+                        <input type="hidden" name="estado" value="{{ estado_filter }}">
+                        
+                        <select name="order" class="form-select form-select-sm w-auto-sm" onchange="this.form.submit()">
+                            <option value="fecha_desc" {% if order == 'fecha_desc' %}selected{% endif %}>Más recientes</option>
+                            <option value="fecha_asc" {% if order == 'fecha_asc' %}selected{% endif %}>Más antiguos</option>
+                            <option value="monto_desc" {% if order == 'monto_desc' %}selected{% endif %}>Mayor monto</option>
+                            <option value="monto_asc" {% if order == 'monto_asc' %}selected{% endif %}>Menor monto</option>
+                        </select>
+                    </form>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                    {% if prestamos %}
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Cliente</th>
+                                        <th>CI</th>
+                                        <th>Monto Prestado</th>
+                                        <th>Monto a Pagar</th>
+                                        <th>Estado</th>
+                                        <th>Artículo</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for prestamo in prestamos %}
+                                        <tr data-prestamo-id="{{ prestamo.id }}" data-numero-documento="{{ prestamo.numero_documento }}">
+                                            <td>{{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</td>
+                                            <td>{{ prestamo.usuario.nombre }}</td>
+                                            <td style="max-width: 120px;" class="text-truncate" title="{{ prestamo.usuario.ci }}">
+                                                {{ prestamo.usuario.ci }}
+                                            </td>
+                                            <td>Bs. {{ "%.2f"|format(prestamo.monto_prestado) }}</td>
+                                            <td class="text-success fw-bold">Bs. {{ "%.2f"|format(prestamo.monto_a_pagar) }}</td>
+
+                                            <td>
+                                                <span class="badge {% if prestamo.estado == 'activo' %}bg-success{% elif prestamo.estado == 'retencion' %}bg-danger{% else %}bg-warning{% endif %}">
+                                                    {{ prestamo.estado }}
+                                                </span>
+                                            </td>
+                                            <td>{{ prestamo.articulos[0].nombre if prestamo.articulos else 'Sin artículos' }}</td>
+                                            <td class="text-center text-nowrap">
+                                                <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}" class="btn btn-sm btn-ver shadow-sm me-1" title="Ver detalles" style="border-radius: 6px;">
+                                                    <i class="bi bi-eye-fill"></i>
+                                                </a>
+                                                {% if prestamo.estado == 'activo' %}
+                                                <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}?action=pay" class="btn btn-sm btn-success shadow-sm" title="Registrar Pago" style="padding: 0.25rem 0.5rem !important; border-radius: 6px;">
+                                                    <i class="bi bi-cash-coin"></i>
+                                                </a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">No hay préstamos registrados</p>
+                    {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico -->
+    <div class="stats-section mt-4">
+        <div class="accordion mb-4" id="statsAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="statsHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#statsBody" aria-expanded="false" aria-controls="statsBody">
+                        Ver Gráfico de Estadísticas
+                    </button>
+                </h2>
+                <div id="statsBody" class="accordion-collapse collapse" aria-labelledby="statsHeading" data-bs-parent="#statsAccordion">
+                    <div class="accordion-body">
+                        <canvas id="prestamosChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+    const ctx = document.getElementById('prestamosChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Activos', 'En Retención', 'Finalizados', 'Decomisados'],
+            datasets: [{
+                data: [
+                    {{ prestamos|selectattr('estado', 'equalto', 'activo')|list|length }},
+                    {{ prestamos|selectattr('estado', 'equalto', 'retencion')|list|length }},
+                    {{ prestamos|selectattr('estado', 'equalto', 'finalizado')|list|length }},
+                    {{ prestamos|selectattr('estado', 'equalto', 'decomisado')|list|length }}
+                ],
+                backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#dc3545'],
+            }]
+        },
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchForm = document.getElementById('searchForm');
+        const clearFilters = document.getElementById('clearFilters');
+        const tableContainer = document.getElementById('tableContainer');
+        const searchCliente = document.getElementById('search_cliente');
+        const btnClear = document.querySelector('.btn-clear-dashboard');
+        let currentPosition = 0;
+        let searchTimeout = null;
+
+        // Mostrar/ocultar botón de limpiar búsqueda
+        if (searchCliente) {
+            searchCliente.addEventListener('input', function() {
+                if (this.value.length > 0) {
+                    btnClear.classList.add('show');
+                } else {
+                    btnClear.classList.remove('show');
+                }
+            });
+
+            // Mostrar botón si hay valor inicial
+            if (searchCliente.value.length > 0) {
+                btnClear.classList.add('show');
+            }
+        }
+
+        // Función para actualizar la tabla
+        function updateTable(url) {
+            // Guardar la posición actual del scroll
+            currentPosition = window.scrollY;
+
+            fetch(url)
+                .then(response => response.text())
+                .then(html => {
+                    // Crear un DOM temporal
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Actualizar solo la tabla y las tarjetas de estadísticas
+                    const newTable = doc.getElementById('tableContainer');
+                    const newStats = doc.querySelector('.stats-grid');
+                    
+                    if (newTable) tableContainer.innerHTML = newTable.innerHTML;
+                    if (newStats) {
+                        document.querySelector('.stats-grid').innerHTML = newStats.innerHTML;
+                    }
+
+                    // Restaurar la posición del scroll
+                    window.scrollTo(0, currentPosition);
+
+                    // Actualizar la URL sin recargar la página
+                    window.history.pushState({}, '', url);
+                });
+        }
+
+        // Función para preparar FormData y convertir search_cliente
+        function prepareFormData(formData) {
+            // Convertir search_cliente en search_ci o search_nombre según el contenido
+            const searchValue = formData.get('search_cliente');
+            if (searchValue) {
+                // Si es numérico, buscar por CI, si no por nombre
+                if (/^\d+$/.test(searchValue.trim())) {
+                    formData.set('search_ci', searchValue);
+                    formData.delete('search_nombre');
+                } else {
+                    formData.set('search_nombre', searchValue);
+                    formData.delete('search_ci');
+                }
+            }
+            formData.delete('search_cliente');
+            return formData;
+        }
+
+        // Manejar el envío del formulario
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            let formData = new FormData(searchForm);
+            formData = prepareFormData(formData);
+            
+            const queryString = new URLSearchParams(formData).toString();
+            const url = `${window.location.pathname}?${queryString}`;
+            updateTable(url);
+        });
+
+        // Manejar el botón de limpiar
+        clearFilters.addEventListener('click', function() {
+            searchForm.reset();
+            btnClear.classList.remove('show');
+            updateTable(window.location.pathname);
+        });
+
+        // Manejar el cambio en el select de ordenamiento
+        document.querySelector('select[name="order"]').addEventListener('change', function() {
+            let formData = new FormData(searchForm);
+            formData = prepareFormData(formData);
+            
+            formData.append('order', this.value);
+            const queryString = new URLSearchParams(formData).toString();
+            const url = `${window.location.pathname}?${queryString}`;
+            updateTable(url);
+        });
+    });
+
+    // Función de búsqueda en tiempo real con debounce
+    function busquedaEnTiempoReal() {
+        // Limpiar timeout anterior
+        if (window.searchTimeout) {
+            clearTimeout(window.searchTimeout);
+        }
+
+        // Establecer nuevo timeout (espera 500ms después de que el usuario deje de escribir)
+        window.searchTimeout = setTimeout(function() {
+            const searchForm = document.getElementById('searchForm');
+            const formData = new FormData(searchForm);
+            const searchValue = formData.get('search_cliente');
+            
+            // Convertir search_cliente en search_ci o search_nombre
+            if (searchValue) {
+                if (/^\d+$/.test(searchValue.trim())) {
+                    formData.set('search_ci', searchValue);
+                    formData.delete('search_nombre');
+                } else {
+                    formData.set('search_nombre', searchValue);
+                    formData.delete('search_ci');
+                }
+            } else {
+                // Si está vacío, limpiar ambos
+                formData.delete('search_ci');
+                formData.delete('search_nombre');
+            }
+            formData.delete('search_cliente');
+            
+            const queryString = new URLSearchParams(formData).toString();
+            const url = `${window.location.pathname}?${queryString}`;
+            
+            // Actualizar tabla
+            const currentPosition = window.scrollY;
+            const tableContainer = document.getElementById('tableContainer');
+            
+            fetch(url)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    const newTable = doc.getElementById('tableContainer');
+                    const newStats = doc.querySelector('.stats-grid');
+                    
+                    if (newTable) tableContainer.innerHTML = newTable.innerHTML;
+                    if (newStats) {
+                        document.querySelector('.stats-grid').innerHTML = newStats.innerHTML;
+                    }
+                    
+                    window.scrollTo(0, currentPosition);
+                    window.history.pushState({}, '', url);
+                });
+        }, 500); // Espera 500ms después de que el usuario deje de escribir
+    }
+
+    // Función para limpiar búsqueda de cliente
+    function limpiarBusquedaCliente() {
+        const searchCliente = document.getElementById('search_cliente');
+        const btnClear = document.querySelector('.btn-clear-dashboard');
+        if (searchCliente) {
+            searchCliente.value = '';
+            searchCliente.focus();
+            btnClear.classList.remove('show');
+            // Activar búsqueda en tiempo real para actualizar la tabla
+            busquedaEnTiempoReal();
+        }
+    }
+
+    // Auto-descargar PDF pendiente cuando se llega al dashboard.
+    {% if pdf_prestamo_id %}
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = "{{ url_for('admin.descargar_documento', prestamo_id=pdf_prestamo_id) }}";
+            document.body.appendChild(iframe);
+
+            setTimeout(function() {
+                if (iframe.parentNode) {
+                    iframe.parentNode.removeChild(iframe);
+                }
+            }, 5000);
+        }, 400);
+    });
+    {% endif %}
+</script>
+{% endblock %}
