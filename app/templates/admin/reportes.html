@@ -63,16 +63,30 @@
                                     <th>Documento</th>
                                     <th>Cliente</th>
                                     <th>Vence</th>
-                                    <th>Dias</th>
+                                    <th>Cuota</th>
+                                    <th class="text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for prestamo in prestamos_por_vencer %}
                                 <tr>
-                                    <td><a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}">{{ prestamo.numero_documento }}</a></td>
+                                    <td><a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}" class="fw-bold">{{ prestamo.numero_documento }}</a></td>
                                     <td>{{ prestamo.usuario.nombre }}</td>
-                                    <td>{{ prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</td>
-                                    <td>{{ prestamo.dias_para_vencimiento }}</td>
+                                    <td>
+                                        <span>{{ prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</span>
+                                        <small class="text-muted d-block">{{ prestamo.dias_para_vencimiento }} días</small>
+                                    </td>
+                                    <td class="text-success fw-bold">Bs. {{ "%.2f"|format(prestamo.interes_un_mes) }}</td>
+                                    <td class="text-center text-nowrap">
+                                        <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}" class="btn btn-sm btn-ver shadow-sm me-1" title="Ver detalles" style="border-radius: 6px;">
+                                            <i class="bi bi-eye-fill"></i>
+                                        </a>
+                                        {% if prestamo.whatsapp_url %}
+                                        <a href="{{ prestamo.whatsapp_url }}" target="_blank" class="btn btn-sm shadow-sm" title="WhatsApp: Recordatorio preventivo a {{ prestamo.usuario.nombre }}" style="padding: 0.25rem 0.5rem !important; border-radius: 6px; background-color: #25d366; border-color: #25d366; color: #ffffff;">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -96,19 +110,38 @@
                                 <tr>
                                     <th>Documento</th>
                                     <th>Cliente</th>
-                                    <th>Vencio</th>
-                                    <th>Dias</th>
+                                    <th>Mora</th>
+                                    <th>Deuda Interés</th>
+                                    <th class="text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for prestamo in prestamos_vencidos %}
                                 <tr>
                                     <td>
-                                        <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}">{{ prestamo.numero_documento }}</a>
+                                        <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}" class="fw-bold text-danger">{{ prestamo.numero_documento }}</a>
                                     </td>
-                                    <td>{{ prestamo.usuario.nombre }}</td>
-                                    <td>{{ prestamo.fecha_finalizacion.strftime('%d/%m/%Y') }}</td>
-                                    <td>{{ prestamo.dias_vencido }}</td>
+                                    <td>
+                                        <span>{{ prestamo.usuario.nombre }}</span>
+                                        {% if prestamo.usuario.telefono %}
+                                        <small class="text-muted d-block"><i class="bi bi-telephone"></i> {{ prestamo.usuario.telefono }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-danger">{{ prestamo.meses_adeudados }} mes(es)</span>
+                                        <small class="text-muted d-block">{{ prestamo.dias_vencido }} días</small>
+                                    </td>
+                                    <td class="text-danger fw-bold">Bs. {{ "%.2f"|format(prestamo.interes_acumulado_pendiente) }}</td>
+                                    <td class="text-center text-nowrap">
+                                        <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}" class="btn btn-sm btn-ver shadow-sm me-1" title="Ver detalles" style="border-radius: 6px;">
+                                            <i class="bi bi-eye-fill"></i>
+                                        </a>
+                                        {% if prestamo.whatsapp_url %}
+                                        <a href="{{ prestamo.whatsapp_url }}" target="_blank" class="btn btn-sm shadow-sm" title="WhatsApp: Recordatorio antes de decomiso a {{ prestamo.usuario.nombre }}" style="padding: 0.25rem 0.5rem !important; border-radius: 6px; background-color: #25d366; border-color: #25d366; color: #ffffff;">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

@@ -405,27 +405,6 @@ def ver_prestamo(prestamo_id):
         prestamo.estado = 'retencion'
         db.session.commit()
 
-    whatsapp_url = None
-    if prestamo.usuario.telefono:
-        telefono_limpio = prestamo.usuario.telefono.replace('+', '').strip()
-        articulo_nombre = prestamo.articulos[0].nombre if prestamo.articulos else 'Garantía'
-        monto_a_pagar = prestamo.monto_liquidacion_actual
-        fecha_limite = prestamo.fecha_finalizacion.strftime('%d/%m/%Y')
-
-        if prestamo.esta_vencido:
-            mensaje = (
-                f"Hola *{prestamo.usuario.nombre}*, te recordamos tu préstamo {prestamo.numero_documento} en Casa de Empeño "
-                f"con la garantía *{articulo_nombre}*. Tu préstamo venció el *{fecha_limite}* y adeuda *{prestamo.meses_adeudados} mes(es)* "
-                f"de interés (Bs. {prestamo.interes_acumulado_pendiente:.2f}). El monto total para liquidar y retirar tu prenda es de *Bs. {monto_a_pagar:.2f}*."
-            )
-        else:
-            mensaje = (
-                f"Hola *{prestamo.usuario.nombre}*, te recordamos tu préstamo {prestamo.numero_documento} en Casa de Empeño "
-                f"con la garantía *{articulo_nombre}*. Fecha de vencimiento: *{fecha_limite}*. "
-                f"Interés mensual: *Bs. {prestamo.interes_un_mes:.2f}*. Total para liquidar: *Bs. {monto_a_pagar:.2f}*."
-            )
-        whatsapp_url = f"https://wa.me/{telefono_limpio}?text={urllib.parse.quote(mensaje)}"
-
     return render_template(
         'admin/ver_prestamo.html',
         prestamo=prestamo,
@@ -433,7 +412,7 @@ def ver_prestamo(prestamo_id):
         alertas=build_prestamo_alerts(prestamo, hoy),
         timeline=build_prestamo_timeline(prestamo),
         total_pago_requerido=resolve_total_payment_due(prestamo),
-        whatsapp_url=whatsapp_url,
+        whatsapp_url=prestamo.whatsapp_url,
     )
 
 

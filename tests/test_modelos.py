@@ -256,3 +256,74 @@ class TestConfiguracion:
         Configuracion.set_valor('clave_b', 'valor_b')
         assert Configuracion.get_valor('clave_a') == 'valor_a'
         assert Configuracion.get_valor('clave_b') == 'valor_b'
+
+
+# ===========================================================================
+# Préstamo — WhatsApp Recordatorios
+# ===========================================================================
+
+class TestPrestamoWhatsApp:
+
+    def test_telefono_whatsapp_bolivia_8_digitos(self, app):
+        u = _make_user('WA1')
+        u.telefono = '71234567'
+        p = _make_prestamo(u.id, numero=201)
+        assert p.telefono_whatsapp == '59171234567'
+
+    def test_telefono_whatsapp_con_mas_y_espacios(self, app):
+        u = _make_user('WA2')
+        u.telefono = '+591 6987-6543'
+        p = _make_prestamo(u.id, numero=202)
+        assert p.telefono_whatsapp == '59169876543'
+
+    def test_telefono_whatsapp_invalido_o_vacio(self, app):
+        u = _make_user('WA3')
+        u.telefono = '123'
+        p = _make_prestamo(u.id, numero=203)
+        assert p.telefono_whatsapp is None
+
+        u.telefono = None
+        assert p.telefono_whatsapp is None
+
+    def test_whatsapp_mensaje_vencido_incluye_meses_y_decomiso(self, app):
+        u = _make_user('WA4')
+        u.nombre = 'Juan Perez'
+        u.telefono = '77889900'
+        ahora = datetime.now()
+        # Vencido hace 2 meses (total 3 meses adeudados)
+        p = _make_prestamo(u.id, monto=1000.0, interes=10.0,
+                           fecha_inicio=ahora - relativedelta(months=3), numero=204)
+        p.fecha_finalizacion = ahora - relativedelta(months=2)
+
+        msg = p.whatsapp_mensaje
+        assert 'Juan Perez' in msg
+        assert 'DOC-204' in msg
+        assert '3 mes(es)' in msg
+        assert 'decomiso' in msg.lower()
+        assert '300.00' in msg  # interes acumulado
+
+    def test_whatsapp_mensaje_al_dia_recordatorio(self, app):
+        u = _make_user('WA5')
+        u.nombre = 'Maria Lopez'
+        u.telefono = '71122334'
+        p = _make_prestamo(u.id, monto=500.0, interes=10.0, numero=205)
+
+        msg = p.whatsapp_mensaje
+        assert 'Maria Lopez' in msg
+        assert 'Bs. 50.00' in msg
+        assert 'decomiso' in msg.lower() or 'garantía' in msg.lower()
+
+    def test_whatsapp_url_correcta(self, app):
+        u = _make_user('WA6')
+        u.telefono = '75566778'
+        p = _make_prestamo(u.id, numero=206)
+
+        url = p.whatsapp_url
+        assert url.startswith('https://wa.me/59175566778?text=')
+        assert 'DOC-206' in url
+
+    def test_whatsapp_url_none_sin_telefono(self, app):
+        u = _make_user('WA7')
+        u.telefono = None
+        p = _make_prestamo(u.id, numero=207)
+        assert p.whatsapp_url is None

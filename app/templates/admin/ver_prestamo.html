@@ -75,6 +75,15 @@
             <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#editModal" style="display: inline-flex; align-items: center; gap: 0.4rem;">
                 <i class="bi bi-pencil-square"></i> Editar
             </button>
+            {% if prestamo.telefono_whatsapp %}
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#whatsappModal" style="display: inline-flex; align-items: center; gap: 0.4rem; background-color: #25d366; border-color: #25d366; color: white;" title="Enviar recordatorio por WhatsApp">
+                <i class="bi bi-whatsapp"></i> WhatsApp
+            </button>
+            {% else %}
+            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Cliente sin teléfono registrado. Clic para agregarlo.">
+                <i class="bi bi-whatsapp"></i> Sin Teléfono
+            </button>
+            {% endif %}
         </div>
     </div>
 
@@ -205,10 +214,14 @@
                     <span class="label"><i class="bi bi-telephone"></i> Teléfono</span>
                     <span class="value">
                         {{ prestamo.usuario.telefono if prestamo.usuario.telefono else 'No registrado' }}
-                        {% if whatsapp_url %}
-                        <a href="{{ whatsapp_url }}" target="_blank" class="btn btn-sm btn-success ms-2" style="padding: 0.15rem 0.4rem; border-radius: 6px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; background: #25d366; border-color: #25d366; color: #ffffff;">
+                        {% if prestamo.telefono_whatsapp %}
+                        <button type="button" class="btn btn-sm btn-success ms-2" data-bs-toggle="modal" data-bs-target="#whatsappModal" style="padding: 0.15rem 0.4rem; border-radius: 6px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; background: #25d366; border-color: #25d366; color: #ffffff;">
                             <i class="bi bi-whatsapp"></i> Recordatorio
-                        </a>
+                        </button>
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="padding: 0.15rem 0.4rem; border-radius: 6px; font-size: 0.8rem;">
+                            <i class="bi bi-pencil"></i> Agregar
+                        </button>
                         {% endif %}
                     </span>
                 </li>
@@ -581,4 +594,101 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+<!-- Modal WhatsApp Recordatorio -->
+<div class="modal fade" id="whatsappModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: #128c7e;">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-whatsapp me-2"></i> Recordatorio por WhatsApp
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3 p-3 rounded" style="background-color: var(--bg-corporativo, #f8f9fa); border: 1px solid var(--borde, #dee2e6);">
+                    <div>
+                        <div class="fw-bold fs-6">{{ prestamo.usuario.nombre }}</div>
+                        <div class="text-muted small">
+                            <i class="bi bi-telephone me-1"></i> {{ prestamo.usuario.telefono or 'Sin teléfono registrado' }}
+                            &nbsp;|&nbsp;
+                            <i class="bi bi-file-earmark-text me-1"></i> Doc: {{ prestamo.numero_documento }}
+                        </div>
+                    </div>
+                    <div>
+                        {% if prestamo.esta_vencido %}
+                        <span class="badge bg-danger fs-7"><i class="bi bi-exclamation-triangle"></i> Vencido ({{ prestamo.meses_adeudados }} meses mora)</span>
+                        {% else %}
+                        <span class="badge bg-success fs-7"><i class="bi bi-check-circle"></i> Al día</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold text-muted d-flex justify-content-between">
+                        <span><i class="bi bi-chat-dots me-1"></i> Mensaje preformateado (editable antes de enviar):</span>
+                        <span class="badge bg-light text-dark border">Formato WhatsApp</span>
+                    </label>
+                    <textarea class="form-control font-monospace" id="whatsappMensajeText" rows="11" style="font-size: 0.9rem; line-height: 1.5; resize: vertical;">{{ prestamo.whatsapp_mensaje }}</textarea>
+                </div>
+
+                <div class="alert alert-info py-2 px-3 small d-flex align-items-center gap-2 mb-0" style="border-radius: 8px;">
+                    <i class="bi bi-info-circle-fill fs-5"></i>
+                    <span>Puedes editar el texto arriba antes de enviarlo, o copiarlo para pegarlo manualmente en WhatsApp Web o en tu celular.</span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="copiarMensajeWhatsApp()">
+                        <i class="bi bi-clipboard me-1"></i> Copiar Mensaje
+                    </button>
+                    {% if prestamo.telefono_whatsapp %}
+                    <a id="btnEnviarWhatsAppModal" href="{{ prestamo.whatsapp_url }}" target="_blank" class="btn btn-success" style="background-color: #25d366; border-color: #25d366;" onclick="actualizarUrlWhatsApp()">
+                        <i class="bi bi-whatsapp me-1"></i> Abrir en WhatsApp
+                    </a>
+                    {% else %}
+                    <button class="btn btn-success disabled" title="Registre el teléfono del cliente primero">
+                        <i class="bi bi-whatsapp me-1"></i> Sin teléfono
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copiarMensajeWhatsApp() {
+    const textarea = document.getElementById('whatsappMensajeText');
+    if (textarea) {
+        navigator.clipboard.writeText(textarea.value).then(function() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Mensaje copiado!',
+                    text: 'El texto ha sido copiado al portapapeles.',
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+            } else {
+                alert('Mensaje copiado al portapapeles');
+            }
+        }).catch(function(err) {
+            textarea.select();
+            document.execCommand('copy');
+            alert('Mensaje copiado');
+        });
+    }
+}
+
+function actualizarUrlWhatsApp() {
+    const textarea = document.getElementById('whatsappMensajeText');
+    const btn = document.getElementById('btnEnviarWhatsAppModal');
+    const telefono = "{{ prestamo.telefono_whatsapp or '' }}";
+    if (textarea && btn && telefono) {
+        const encodedText = encodeURIComponent(textarea.value);
+        btn.href = `https://wa.me/${telefono}?text=${encodedText}`;
+    }
+}
+</script>
 {% endblock %}

@@ -1,5 +1,7 @@
-from app.utils import get_bolivia_time
+import re
+import urllib.parse
 
+from app.utils import get_bolivia_time
 from app import db
 
 
@@ -106,6 +108,75 @@ class Prestamo(db.Model):
         if self.estado in ['finalizado', 'decomisado']:
             return 0.0
         return max(0.0, round(self.monto_liquidacion_actual - self.total_pagado, 2))
+
+    @property
+    def telefono_whatsapp(self):
+        if not self.usuario or not self.usuario.telefono:
+            return None
+        numeros = re.sub(r'\D', '', str(self.usuario.telefono))
+        if not numeros:
+            return None
+        # Celular Bolivia (8 dígitos empezando con 6 o 7): anteponer 591
+        if len(numeros) == 8 and numeros[0] in ('6', '7'):
+            return f"591{numeros}"
+        # Completo con código de país 591
+        if len(numeros) == 11 and numeros.startswith('591'):
+            return numeros
+        # Si tiene al menos 8 dígitos en general
+        if len(numeros) >= 8:
+            return numeros
+        return None
+
+    @property
+    def whatsapp_mensaje(self):
+        if not self.usuario:
+            return ""
+
+        nombre = self.usuario.nombre or "Estimado/a cliente"
+        doc = self.numero_documento or f"#{self.numero_prestamo}"
+        articulos_desc = ", ".join(a.nombre for a in self.articulos) if self.articulos else "su artículo en prenda"
+        fecha_limite = self.fecha_finalizacion.strftime('%d/%m/%Y') if self.fecha_finalizacion else "a convenir"
+        monto_pagar = self.monto_liquidacion_actual
+
+        if self.esta_vencido:
+            dias_v = self.dias_vencido
+            meses_d = self.meses_adeudados
+            interes_pend = self.interes_acumulado_pendiente
+
+            return (
+                f"¡Hola *{nombre}*! Le saludamos de *Casa de Empeño*.\n\n"
+                f"Le informamos que su préstamo *{doc}* con garantía de *{articulos_desc}* "
+                f"se encuentra *vencido* desde el *{fecha_limite}* ({dias_v} días de mora).\n\n"
+                f"📋 *Detalle de su deuda:*\n"
+                f"• Meses de interés adeudados: *{meses_d} mes(es)*\n"
+                f"• Interés acumulado a pagar: *Bs. {interes_pend:.2f}*\n"
+                f"• Monto total para liquidar y retirar: *Bs. {monto_pagar:.2f}*\n\n"
+                f"⚠️ *AVISO IMPORTANTE:*\n"
+                f"Le recordamos ponerse al día con el pago de sus intereses a la brevedad posible "
+                f"para evitar el decomiso de su artículo y su pase a venta en inventario.\n\n"
+                f"Puede pasar por nuestra sucursal para regularizar su cuenta o comunicarse por este medio si tiene alguna duda. ¡Muchas gracias!"
+            )
+        else:
+            dias_restantes = max(0, self.dias_para_vencimiento)
+            interes_mes = self.interes_un_mes
+
+            return (
+                f"¡Hola *{nombre}*! Le saludamos de *Casa de Empeño*.\n\n"
+                f"Le recordamos que su préstamo *{doc}* con garantía de *{articulos_desc}* "
+                f"tiene como fecha límite de pago el *{fecha_limite}* (en {dias_restantes} días).\n\n"
+                f"📋 *Opciones de pago:*\n"
+                f"• Cuota de interés para renovar (1 mes): *Bs. {interes_mes:.2f}*\n"
+                f"• Monto total para liquidar y retirar: *Bs. {monto_pagar:.2f}*\n\n"
+                f"Le recordamos realizar su pago a tiempo para mantener su garantía al día y evitar recargos o decomiso de su prenda. "
+                f"¡Muchas gracias por su preferencia!"
+            )
+
+    @property
+    def whatsapp_url(self):
+        tel = self.telefono_whatsapp
+        if not tel:
+            return None
+        return f"https://wa.me/{tel}?text={urllib.parse.quote(self.whatsapp_mensaje)}"
 
     def __repr__(self):
         return f'<Prestamo {self.numero_documento}>'
