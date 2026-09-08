@@ -50,6 +50,7 @@ class Config:
     # Uploads
     UPLOAD_FOLDER = os.path.join(BASEDIR, 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    TEMPLATES_AUTO_RELOAD = True
 
     # Backups
     USER_HOME = os.path.expanduser('~')
