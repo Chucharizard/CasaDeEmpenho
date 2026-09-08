@@ -15,7 +15,7 @@
         padding: 1.2rem;
         background:
             radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 34%),
-            linear-gradient(135deg, #ffffff, #f7fbff);
+            linear-gradient(135deg, var(--bg-tarjeta), var(--bg-corporativo));
         border: 1px solid var(--borde);
         border-radius: 22px;
         box-shadow: var(--sombra-suave);
@@ -34,7 +34,7 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #0f172a, #1e293b);
+        background: linear-gradient(135deg, var(--primario), var(--secundario));
         color: #ffffff;
         font-size: 1.85rem;
         box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
@@ -46,6 +46,7 @@
         font-size: clamp(2rem, 3vw, 2.8rem);
         line-height: 0.95;
         letter-spacing: -0.04em;
+        color: var(--color-texto-principal);
     }
 
     .settings-hero-copy p {
@@ -67,10 +68,10 @@
         align-items: center;
         gap: 0.45rem;
         padding: 0.55rem 0.85rem;
-        background: rgba(255, 255, 255, 0.9);
-        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: var(--bg-corporativo);
+        border: 1px solid var(--borde);
         border-radius: 999px;
-        color: #334155;
+        color: var(--color-texto-principal);
         font-size: 0.88rem;
         font-weight: 600;
     }
@@ -83,14 +84,14 @@
 
     .settings-note {
         padding: 1rem 1.05rem;
-        background: rgba(240, 253, 244, 0.72);
-        border: 1px solid #bbf7d0;
+        background: rgba(16, 185, 129, 0.08);
+        border: 1px solid rgba(16, 185, 129, 0.25);
         border-radius: 18px;
     }
 
     .settings-note .eyebrow {
         margin: 0 0 0.3rem;
-        color: #059669;
+        color: #10b981;
         font-size: 0.78rem;
         font-weight: 700;
         letter-spacing: 0.08em;
@@ -100,11 +101,11 @@
     .settings-note strong {
         display: block;
         margin-bottom: 0.25rem;
-        color: #0f172a;
+        color: var(--color-texto-principal);
     }
 
     .settings-note span {
-        color: #475569;
+        color: var(--color-texto-secundario);
         font-size: 0.92rem;
     }
 
@@ -120,8 +121,7 @@
         padding: 1rem 1.05rem;
         border-radius: 20px;
         border: 1px solid var(--borde);
-        background:
-            linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+        background: var(--bg-tarjeta);
         box-shadow: var(--sombra-suave);
     }
 
@@ -149,15 +149,15 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: #ecfdf5;
-        color: #059669;
+        background: rgba(16, 185, 129, 0.12);
+        color: #10b981;
         font-size: 1.25rem;
-        border: 1px solid #d1fae5;
+        border: 1px solid rgba(16, 185, 129, 0.25);
         flex-shrink: 0;
     }
 
     .settings-stat-label {
-        color: #64748b;
+        color: var(--color-texto-secundario);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         font-size: 0.76rem;
@@ -170,11 +170,11 @@
         line-height: 1;
         font-weight: 700;
         letter-spacing: -0.04em;
-        color: #0f172a;
+        color: var(--color-texto-principal);
     }
 
     .settings-stat-subvalue {
-        color: #64748b;
+        color: var(--color-texto-secundario);
         font-weight: 600;
     }
 
@@ -191,7 +191,7 @@
     }
 
     .settings-panel {
-        background: #ffffff;
+        background: var(--bg-tarjeta);
         border: 1px solid var(--borde);
         border-radius: 22px;
         box-shadow: var(--sombra-suave);
@@ -204,8 +204,8 @@
         align-items: flex-start;
         gap: 1rem;
         padding: 1.15rem 1.2rem 1rem;
-        border-bottom: 1px solid rgba(203, 213, 225, 0.7);
-        background: linear-gradient(180deg, rgba(248,250,252,0.95), #ffffff);
+        border-bottom: 1px solid var(--borde);
+        background: var(--bg-corporativo);
     }
 
     .settings-panel-title {
@@ -216,15 +216,16 @@
         font-size: 1.65rem;
         line-height: 1;
         letter-spacing: -0.04em;
+        color: var(--color-texto-principal);
     }
 
     .settings-panel-title i {
-        color: #0f766e;
+        color: var(--primario);
     }
 
     .settings-panel-subtitle {
         margin: 0.45rem 0 0;
-        color: #64748b;
+        color: var(--color-texto-secundario);
         max-width: 54ch;
     }
 
@@ -244,32 +245,32 @@
 
     .settings-field label {
         font-weight: 700;
-        color: #0f172a;
+        color: var(--color-texto-principal);
     }
 
     .settings-field small {
-        color: #64748b;
+        color: var(--color-texto-secundario);
         line-height: 1.45;
     }
 
     .settings-input,
     .settings-select {
         width: 100%;
-        border: 1px solid #cbd5e1;
+        border: 1px solid var(--borde);
         border-radius: 14px;
-        background: #f8fafc;
+        background: var(--bg-corporativo);
         padding: 0.85rem 0.95rem;
         font-size: 1rem;
-        color: #0f172a;
+        color: var(--color-texto-principal);
         transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     }
 
     .settings-input:focus,
     .settings-select:focus {
         outline: none;
-        background: #ffffff;
-        border-color: #10b981;
-        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+        background: var(--bg-tarjeta);
+        border-color: var(--primario);
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
     }
 
     .settings-actions {
@@ -310,9 +311,9 @@
     }
 
     .settings-btn-secondary {
-        background: linear-gradient(135deg, #eff6ff, #dbeafe);
-        color: #1d4ed8;
-        border: 1px solid #bfdbfe;
+        background: var(--bg-corporativo);
+        color: var(--secundario);
+        border: 1px solid var(--borde);
     }
 
     .settings-btn-danger {
@@ -340,7 +341,7 @@
         padding: 0.7rem;
         border: 1px solid var(--borde);
         border-radius: 16px;
-        background: #ffffff;
+        background: var(--bg-tarjeta);
         cursor: pointer;
         transition: border-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
                     box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -392,7 +393,7 @@
     .theme-name {
         font-weight: 600;
         font-size: 0.9rem;
-        color: #0f172a;
+        color: var(--color-texto-principal);
         line-height: 1.2;
     }
 
@@ -439,13 +440,13 @@
 
     .settings-meta-card {
         padding: 0.95rem 1rem;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--borde);
         border-radius: 16px;
-        background: #fbfdff;
+        background: var(--bg-corporativo);
     }
 
     .settings-meta-card .meta-label {
-        color: #64748b;
+        color: var(--color-texto-secundario);
         font-size: 0.82rem;
         font-weight: 700;
         text-transform: uppercase;
@@ -454,7 +455,7 @@
     }
 
     .settings-meta-card .meta-value {
-        color: #0f172a;
+        color: var(--color-texto-principal);
         font-weight: 600;
         word-break: break-word;
         line-height: 1.45;
@@ -470,7 +471,7 @@
     .settings-history-table {
         max-height: 560px;
         overflow: auto;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--borde);
         border-radius: 18px;
     }
 
@@ -482,12 +483,13 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        background: #f8fafc !important;
+        background: var(--bg-corporativo) !important;
+        color: var(--color-texto-secundario) !important;
     }
 
     .settings-file {
         font-weight: 600;
-        color: #0f172a;
+        color: var(--color-texto-principal);
         line-height: 1.4;
         word-break: break-word;
     }
@@ -502,9 +504,9 @@
     .settings-pill {
         padding: 0.55rem 0.75rem;
         border-radius: 999px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        color: #334155;
+        background: var(--bg-corporativo);
+        border: 1px solid var(--borde);
+        color: var(--color-texto-principal);
         font-size: 0.85rem;
         font-weight: 600;
     }
