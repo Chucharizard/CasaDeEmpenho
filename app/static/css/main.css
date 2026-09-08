@@ -405,6 +405,19 @@ body::before {
     background: rgba(99, 102, 241, 0.04) !important;
 }
 
+.table tbody tr.table-row-clickable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.table tbody tr.table-row-clickable:hover {
+    background: rgba(99, 102, 241, 0.08) !important;
+}
+
+.table tbody tr.table-row-clickable:active {
+    background: rgba(99, 102, 241, 0.15) !important;
+}
+
 .btn,
 .btn-glass,
 .btn-glass-primary,

@@ -164,7 +164,7 @@
         {% endif %}
 
         <!-- Tabla de préstamos mejorada -->
-        <div class="table-container">
+        <div class="table-container" id="tableContainer">
             <div class="table-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <h5><i class="bi bi-table"></i> Préstamos Recientes</h5>
@@ -185,7 +185,7 @@
             <div class="table-wrapper">
                     {% if prestamos %}
                         <div class="table-responsive">
-                            <table class="table">
+                            <table class="table table-hover align-middle mb-0">
                                 <thead>
                                     <tr>
                                         <th>Fecha</th>
@@ -195,14 +195,19 @@
                                         <th>Monto a Pagar</th>
                                         <th>Estado</th>
                                         <th>Artículo</th>
-                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for prestamo in prestamos %}
-                                        <tr data-prestamo-id="{{ prestamo.id }}" data-numero-documento="{{ prestamo.numero_documento }}">
+                                        <tr class="table-row-clickable"
+                                            data-href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}"
+                                            data-prestamo-id="{{ prestamo.id }}" 
+                                            data-numero-documento="{{ prestamo.numero_documento }}"
+                                            tabindex="0"
+                                            role="button"
+                                            title="Clic para ver detalles del préstamo">
                                             <td>{{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</td>
-                                            <td>{{ prestamo.usuario.nombre }}</td>
+                                            <td class="fw-semibold">{{ prestamo.usuario.nombre }}</td>
                                             <td style="max-width: 120px;" class="text-truncate" title="{{ prestamo.usuario.ci }}">
                                                 {{ prestamo.usuario.ci }}
                                             </td>
@@ -215,28 +220,13 @@
                                                 </span>
                                             </td>
                                             <td>{{ prestamo.articulos[0].nombre if prestamo.articulos else 'Sin artículos' }}</td>
-                                            <td class="text-center text-nowrap">
-                                                <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}" class="btn btn-sm btn-ver shadow-sm me-1" title="Ver detalles" style="border-radius: 6px;">
-                                                    <i class="bi bi-eye-fill"></i>
-                                                </a>
-                                                {% if prestamo.whatsapp_url and prestamo.estado in ['activo', 'retencion'] %}
-                                                <a href="{{ prestamo.whatsapp_url }}" target="_blank" class="btn btn-sm shadow-sm me-1" title="WhatsApp: Recordatorio a {{ prestamo.usuario.nombre }}" style="padding: 0.25rem 0.5rem !important; border-radius: 6px; background-color: #25d366; border-color: #25d366; color: #ffffff;">
-                                                    <i class="bi bi-whatsapp"></i>
-                                                </a>
-                                                {% endif %}
-                                                {% if prestamo.estado == 'activo' %}
-                                                <a href="{{ url_for('admin.ver_prestamo', prestamo_id=prestamo.id) }}?action=pay" class="btn btn-sm btn-success shadow-sm" title="Registrar Pago" style="padding: 0.25rem 0.5rem !important; border-radius: 6px;">
-                                                    <i class="bi bi-cash-coin"></i>
-                                                </a>
-                                                {% endif %}
-                                            </td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-muted text-center">No hay préstamos registrados</p>
+                        <p class="text-muted text-center py-4 my-0">No hay préstamos registrados</p>
                     {% endif %}
             </div>
         </div>
@@ -381,6 +371,21 @@
             const url = `${window.location.pathname}?${queryString}`;
             updateTable(url);
         });
+    });
+
+    // Navegación fluida al hacer clic en cualquier fila de la tabla
+    document.addEventListener('click', function(e) {
+        const row = e.target.closest('tr[data-href]');
+        if (row && !e.target.closest('button, a, input, select, textarea, label')) {
+            window.location.href = row.dataset.href;
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-href]')) {
+            e.preventDefault();
+            window.location.href = e.target.dataset.href;
+        }
     });
 
     // Función de búsqueda en tiempo real con debounce
