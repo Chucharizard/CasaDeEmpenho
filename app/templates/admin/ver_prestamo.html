@@ -145,10 +145,25 @@
     </div>
 
     {% if alertas %}
-    <div class="mb-4">
+    <div class="loan-alerts mb-3">
         {% for alerta in alertas %}
-        <div class="alert alert-{{ alerta.level }} shadow-sm">
-            <strong>{{ alerta.title }}:</strong> {{ alerta.message }}
+        <div class="loan-alert-banner loan-alert-{{ alerta.level }}">
+            <div class="loan-alert-content">
+                <div class="loan-alert-icon">
+                    <i class="bi {{ alerta.icon or 'bi-exclamation-octagon-fill' }}"></i>
+                </div>
+                <div class="loan-alert-text">
+                    <strong class="loan-alert-title">{{ alerta.title }}:</strong>
+                    <span class="loan-alert-message">{{ alerta.message }}</span>
+                </div>
+            </div>
+            {% if alerta.level == 'danger' and prestamo.telefono_whatsapp and prestamo.estado in ['activo', 'retencion'] %}
+            <div class="loan-alert-action">
+                <button type="button" class="btn btn-sm btn-whatsapp-compact" data-bs-toggle="modal" data-bs-target="#whatsappModal">
+                    <i class="bi bi-whatsapp"></i> Avisar por WhatsApp
+                </button>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>

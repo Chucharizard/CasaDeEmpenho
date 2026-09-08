@@ -102,51 +102,45 @@ def build_prestamo_alerts(prestamo, hoy=None):
     hoy = hoy or get_bolivia_time()
     alerts = []
 
+    if prestamo.estado == 'decomisado':
+        alerts.append({
+            'level': 'danger',
+            'icon': 'bi-box-arrow-right',
+            'title': 'Artículo Decomisado',
+            'message': 'Este préstamo fue decomisado y su garantía pasó al inventario de venta.',
+        })
+        return alerts
+
     if prestamo.estado == 'finalizado':
         alerts.append({
             'level': 'success',
-            'title': 'Prestamo finalizado',
-            'message': f'Se registraron pagos por Bs. {prestamo.total_pagado:.2f}.',
+            'icon': 'bi-check-circle-fill',
+            'title': 'Préstamo Liquidado',
+            'message': f'Cancelado en su totalidad con Bs. {prestamo.total_pagado:.2f} registrados en pagos.',
         })
         return alerts
 
     if prestamo.dias_para_vencimiento < 0:
-        meses_txt = f"{prestamo.meses_adeudados} mes(es)"
+        meses_txt = f"{prestamo.meses_adeudados} mes{'es' if prestamo.meses_adeudados != 1 else ''}"
         alerts.append({
             'level': 'danger',
-            'title': 'Préstamo vencido',
-            'message': f'El vencimiento fue hace {prestamo.dias_vencido} día(s). Adeuda {meses_txt} de interés (Bs. {prestamo.interes_acumulado_pendiente:.2f}).',
+            'icon': 'bi-exclamation-octagon-fill',
+            'title': 'Préstamo Vencido / En Retención',
+            'message': f'Venció hace {prestamo.dias_vencido} día(s). Adeuda {meses_txt} de interés acumulado (Bs. {prestamo.interes_acumulado_pendiente:.2f}).',
         })
     elif prestamo.dias_para_vencimiento == 0:
         alerts.append({
             'level': 'warning',
-            'title': 'Vence hoy',
-            'message': 'Conviene registrar pago o cerrar el prestamo hoy mismo.',
+            'icon': 'bi-exclamation-triangle-fill',
+            'title': 'Vence Hoy',
+            'message': 'Fecha límite alcanzada hoy. Se requiere renovación de interés o liquidación.',
         })
     elif prestamo.dias_para_vencimiento <= 7:
         alerts.append({
             'level': 'warning',
-            'title': 'Proximo a vencer',
-            'message': f'Faltan {prestamo.dias_para_vencimiento} dia(s) para el vencimiento.',
-        })
-    else:
-        alerts.append({
-            'level': 'info',
-            'title': 'Prestamo vigente',
-            'message': f'Faltan {prestamo.dias_para_vencimiento} dia(s) para el vencimiento.',
-        })
-
-    if not prestamo.pagos:
-        alerts.append({
-            'level': 'secondary',
-            'title': 'Sin pagos registrados',
-            'message': 'Todavia no hay pagos cargados para este prestamo.',
-        })
-    else:
-        alerts.append({
-            'level': 'primary',
-            'title': 'Pagos acumulados',
-            'message': f'Se registraron Bs. {prestamo.total_pagado:.2f} en pagos.',
+            'icon': 'bi-clock-history',
+            'title': 'Próximo a Vencer',
+            'message': f'Quedan {prestamo.dias_para_vencimiento} día(s) para la fecha de vencimiento.',
         })
 
     return alerts
