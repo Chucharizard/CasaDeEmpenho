@@ -9,9 +9,12 @@ uploads/
 *.pyo
 *.pyd
 *.db
+*.db-wal
+*.db-shm
 .env
 .secret_key
 .admin_url_key
-.claude/
 .vscode/
 .idea/
+whatsapp-bot/auth_session/
+whatsapp-bot/node_modules/

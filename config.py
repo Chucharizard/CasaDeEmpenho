@@ -74,6 +74,8 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = 'Lax'
 
+    ENABLE_DEV_LOGIN = os.getenv('ENABLE_DEV_LOGIN', '0').strip().lower() in ('1', 'true', 'yes')
+
     @classmethod
     def init_app(cls, app):
         pass

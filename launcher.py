@@ -110,6 +110,18 @@ def main():
     print('Presiona Ctrl+C para detener el servidor\n')
     print('-' * 50)
 
+    # Iniciar bot de WhatsApp en segundo plano si está disponible
+    try:
+        if not is_port_in_use(3001):
+            bot_dir = os.path.join(base_path, 'whatsapp-bot')
+            server_js = os.path.join(bot_dir, 'server.js')
+            if os.path.exists(server_js):
+                import subprocess
+                subprocess.Popen(['node', 'server.js'], cwd=bot_dir, shell=True)
+                print('🤖 Bot de WhatsApp iniciado en segundo plano (puerto 3001)')
+    except Exception as e:
+        print(f'Nota: No se pudo auto-iniciar WhatsApp Bot: {e}')
+
     browser_thread = threading.Thread(target=open_browser, args=(port,))
     browser_thread.daemon = True
     browser_thread.start()

@@ -1,3 +1,7 @@
+param(
+    [switch]$Windowed = $false
+)
+
 Set-Location "$PSScriptRoot"
 
 # Buscar el entorno virtual local .venv en el directorio padre o en el actual
@@ -41,10 +45,30 @@ if (!(Test-Path $pyinstallerExe) -and ($pyinstallerExe -ne "pyinstaller")) {
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 
-& $pyinstallerExe --noconfirm --clean --onedir --name CasaEmpeno --add-data "app;app" --add-data "casa_empeno.db;." --collect-all reportlab launcher.py
+$buildMode = if ($Windowed) { "modo ventana (sin consola)" } else { "modo consola" }
+Write-Host "Compilando ejecutable en $buildMode..." -ForegroundColor Cyan
+
+$pyinstallerArgs = @(
+    "--noconfirm",
+    "--clean",
+    "--onedir",
+    "--name", "CasaEmpeno",
+    "--add-data", "app;app",
+    "--add-data", "casa_empeno.db;.",
+    "--collect-all", "reportlab",
+    "--collect-all", "tzdata"
+)
+
+if ($Windowed) {
+    $pyinstallerArgs += "--windowed"
+}
+
+$pyinstallerArgs += "launcher.py"
+
+& $pyinstallerExe $pyinstallerArgs
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Build completado: .\dist\CasaEmpeno\CasaEmpeno.exe" -ForegroundColor Green
+    Write-Host "Build completado exitosamente: .\dist\CasaEmpeno\CasaEmpeno.exe ($buildMode)" -ForegroundColor Green
 } else {
     Write-Host "Build falló" -ForegroundColor Red
     exit $LASTEXITCODE
