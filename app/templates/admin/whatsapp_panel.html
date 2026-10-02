@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp - Panel de Conexión{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .wa-status-card {
+        border-radius: 16px;
+        overflow: hidden;
+        border: none;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .wa-header {
+        background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
+        padding: 2rem;
+        color: white;
+        text-align: center;
+    }
+    .wa-header h3 {
+        margin: 0;
+        font-weight: 700;
+    }
+    .wa-header .wa-icon {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+    .wa-body {
+        padding: 2rem;
+        text-align: center;
+    }
+    .qr-container {
+        display: inline-block;
+        padding: 20px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+    }
+    .qr-container img {
+        width: 280px;
+        height: 280px;
+        border-radius: 8px;
+    }
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1.2rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .status-connected {
+        background: #dcfce7;
+        color: #166534;
+        border: 2px solid #86efac;
+    }
+    .status-qr {
+        background: #fef3c7;
+        color: #92400e;
+        border: 2px solid #fcd34d;
+    }
+    .status-disconnected {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 2px solid #fca5a5;
+    }
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+    }
+    .pulse-green { background: #22c55e; }
+    .pulse-yellow { background: #f59e0b; }
+    .pulse-red { background: #ef4444; }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    .linked-number {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #128c7e;
+        margin: 0.5rem 0;
+    }
+    .test-form {
+        max-width: 400px;
+        margin: 1.5rem auto 0;
+    }
+    .instructions-list {
+        text-align: left;
+        max-width: 500px;
+        margin: 1rem auto;
+    }
+    .instructions-list li {
+        padding: 0.4rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 800px;">
+
+    <div class="mb-3">
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+            <i class="bi bi-arrow-left"></i> Volver al Dashboard
+        </a>
+    </div>
+
+    <div class="wa-status-card card mb-4">
+        <div class="wa-header">
+            <div class="wa-icon"><i class="bi bi-whatsapp"></i></div>
+            <h3>WhatsApp Bot - Envío Automático de Recibos</h3>
+            <p class="mb-0 mt-2 opacity-75">Conecta tu WhatsApp para enviar recibos como imagen directamente al cliente</p>
+        </div>
+
+        <div class="wa-body" id="waStatusBody">
+            <!-- Contenido dinámico cargado por JavaScript -->
+            <div class="text-center py-5">
+                <div class="spinner-border text-success" role="status"></div>
+                <p class="mt-2 text-muted">Consultando estado del bot...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modo de Envío de Recibos -->
+    <div class="card mb-4" style="border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border-radius: 12px;">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(37, 211, 102, 0.12); color: #128c7e; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0;">
+                        <i class="bi bi-gear-wide-connected"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1" style="color: var(--color-texto-principal);">Modo de Envío de Recibos</h6>
+                        <div class="text-muted small">
+                            {% if whatsapp_auto_envio %}
+                                <span class="badge bg-success me-1"><i class="bi bi-lightning-charge-fill"></i> Automático (0 clics)</span>
+                                Los recibos se envían al WhatsApp del cliente inmediatamente al registrar el pago.
+                            {% else %}
+                                <span class="badge bg-primary me-1"><i class="bi bi-question-circle-fill"></i> Preguntar siempre</span>
+                                Al registrar cada pago, saldrá una ventana emergente preguntándote si deseas enviarlo.
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <form action="{{ url_for('admin.whatsapp_toggle_auto') }}" method="POST" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="panel_whatsapp_auto_envio" name="whatsapp_auto_envio" style="width: 3.2rem; height: 1.7rem; cursor: pointer;" {% if whatsapp_auto_envio %}checked{% endif %} onchange="this.form.submit()">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instrucciones -->
+    <div class="card mb-4" style="border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border-radius: 12px;">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-3"><i class="bi bi-info-circle text-primary me-2"></i> ¿Cómo funciona?</h5>
+            <ol class="instructions-list mb-0" style="max-width: 100%;">
+                <li><strong>Primera vez:</strong> Escanea el código QR con la app de WhatsApp de tu celular (como si abrieras WhatsApp Web).</li>
+                <li><strong>Después:</strong> La sesión permanece activa. Mientras este servicio esté encendido, no necesitas volver a escanear.</li>
+                <li><strong>En cada pago:</strong> Al registrar un pago de un cliente, el sistema genera la imagen del recibo y la envía automáticamente al WhatsApp del cliente. ¡Sin tocar nada!</li>
+                <li><strong>Seguridad:</strong> Tu WhatsApp sigue funcionando normal en tu celular. Este servicio solo envía mensajes del sistema.</li>
+            </ol>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let pollingInterval = null;
+
+function actualizarEstado() {
+    fetch('{{ url_for("admin.whatsapp_estado") }}')
+        .then(r => r.json())
+        .then(data => renderEstado(data))
+        .catch(err => {
+            renderBotOffline();
+        });
+}
+
+function renderEstado(data) {
+    const body = document.getElementById('waStatusBody');
+
+    if (data.status === 'connected') {
+        body.innerHTML = `
+            <div class="status-badge status-connected mb-3">
+                <span class="pulse-dot pulse-green"></span> Conectado y Operativo
+            </div>
+            <div class="linked-number">
+                <i class="bi bi-phone me-1"></i> +${data.linkedNumber || 'N/A'}
+            </div>
+            <p class="text-muted mt-2 mb-3">El sistema enviará los recibos automáticamente por WhatsApp al registrar pagos.</p>
+
+            <div class="test-form">
+                <h6 class="fw-bold mb-2"><i class="bi bi-send-check me-1"></i> Enviar Mensaje de Prueba</h6>
+                <form action="{{ url_for('admin.whatsapp_enviar_prueba') }}" method="POST" class="d-flex gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="text" name="telefono" class="form-control" placeholder="Ej: 72880325" required style="border-radius: 8px;">
+                    <button type="submit" class="btn btn-success flex-shrink-0" style="border-radius: 8px; background: #25d366; border-color: #25d366;">
+                        <i class="bi bi-send-fill me-1"></i> Probar
+                    </button>
+                </form>
+                <small class="text-muted mt-1 d-block">Ingresa un número de celular boliviano (8 dígitos) para verificar que funciona.</small>
+            </div>
+
+            <hr class="my-4">
+            <form action="{{ url_for('admin.whatsapp_cerrar_sesion') }}" method="POST"
+                  onsubmit="return confirm('¿Seguro que deseas cerrar la sesión de WhatsApp? Tendrás que volver a escanear el QR.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm" style="border-radius: 8px;">
+                    <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión de WhatsApp
+                </button>
+            </form>
+        `;
+        // Cuando está conectado, hacer polling cada 30 segundos
+        clearPolling();
+        pollingInterval = setInterval(actualizarEstado, 30000);
+
+    } else if (data.status === 'qr_pending') {
+        // Pedir el QR
+        fetch('{{ url_for("admin.whatsapp_qr_data") }}')
+            .then(r => r.json())
+            .then(qrData => {
+                if (qrData.qr) {
+                    body.innerHTML = `
+                        <div class="status-badge status-qr mb-3">
+                            <span class="pulse-dot pulse-yellow"></span> Esperando escaneo del QR
+                        </div>
+                        <div class="qr-container">
+                            <img src="${qrData.qr}" alt="Código QR de WhatsApp">
+                        </div>
+                        <p class="text-muted mt-2"><strong>Abre WhatsApp en tu celular</strong> → Menú (⋮) → <strong>Dispositivos vinculados</strong> → <strong>Vincular un dispositivo</strong> → Escanea este QR.</p>
+                        <p class="text-warning small"><i class="bi bi-arrow-repeat me-1"></i> El QR se actualiza automáticamente cada 5 segundos...</p>
+                    `;
+                } else {
+                    body.innerHTML = `
+                        <div class="status-badge status-qr mb-3">
+                            <span class="pulse-dot pulse-yellow"></span> Generando código QR...
+                        </div>
+                        <p class="text-muted">Espera un momento mientras se genera el QR.</p>
+                    `;
+                }
+            })
+            .catch(() => {
+                body.innerHTML = '<p class="text-muted">Error al obtener el QR. Reintentando...</p>';
+            });
+
+        // Polling rápido mientras espera QR
+        clearPolling();
+        pollingInterval = setInterval(actualizarEstado, 5000);
+
+    } else {
+        renderBotOffline();
+    }
+}
+
+function renderBotOffline() {
+    const body = document.getElementById('waStatusBody');
+    body.innerHTML = `
+        <div class="status-badge status-disconnected mb-3">
+            <span class="pulse-dot pulse-red"></span> Bot Desconectado
+        </div>
+        <p class="text-muted mt-2 mb-1">El servicio de WhatsApp Bot no está respondiendo.</p>
+        <p class="text-muted small">
+            Asegúrate de que el bot esté ejecutándose. Abre una terminal en la carpeta <code>whatsapp-bot</code> y ejecuta:<br>
+            <code class="d-inline-block mt-2 px-3 py-2 rounded" style="background: #1e293b; color: #e2e8f0;">npm start</code>
+        </p>
+    `;
+    // Polling cada 10 segundos cuando está offline
+    clearPolling();
+    pollingInterval = setInterval(actualizarEstado, 10000);
+}
+
+function clearPolling() {
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+}
+
+// Iniciar al cargar la página
+document.addEventListener('DOMContentLoaded', actualizarEstado);
+</script>
+{% endblock %}
