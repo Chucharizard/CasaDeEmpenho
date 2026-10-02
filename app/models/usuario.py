@@ -1,5 +1,6 @@
 from app import db
 from flask_login import UserMixin
+from sqlalchemy.orm import validates
 
 
 class Usuario(UserMixin, db.Model):
@@ -15,6 +16,18 @@ class Usuario(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True)
 
     prestamos = db.relationship('Prestamo', backref='usuario', lazy=True)
+
+    @validates('ci')
+    def validate_ci(self, key, value):
+        if value is not None:
+            return str(value).strip().upper()
+        return value
+
+    @validates('nombre')
+    def validate_nombre(self, key, value):
+        if value is not None:
+            return str(value).strip()
+        return value
 
     def __repr__(self):
         return f'<Usuario {self.nombre}>'

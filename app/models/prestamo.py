@@ -191,5 +191,67 @@ class Pago(db.Model):
     tipo_pago = db.Column(db.String(20), nullable=False)
     monto_pagado = db.Column(db.Float, nullable=False)
 
+    @property
+    def whatsapp_mensaje(self):
+        if not self.prestamo or not self.prestamo.usuario:
+            return ""
+
+        prestamo = self.prestamo
+        cliente = prestamo.usuario
+        nombre = cliente.nombre or "Estimado/a cliente"
+        recibo_num = f"REC-{self.id:05d}"
+        fecha_str = self.fecha_pago.strftime('%d/%m/%Y %H:%M') if self.fecha_pago else ""
+        articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else "su prenda"
+        doc = prestamo.numero_documento or f"#{prestamo.numero_prestamo}"
+        monto_str = f"Bs. {self.monto_pagado:.2f}"
+
+        if self.tipo_pago == 'total':
+            return (
+                f"🧾 *COMPROBANTE DE PAGO - CASA DE EMPEÑO*\n"
+                f"────────────────────────\n"
+                f"Estimado/a *{nombre}*, le confirmamos que su préstamo ha sido *liquidado y cancelado en su totalidad*.\n\n"
+                f"📋 *Detalles del Comprobante:*\n"
+                f"• *N° Recibo:* {recibo_num}\n"
+                f"• *Fecha y Hora:* {fecha_str}\n"
+                f"• *Préstamo:* {doc}\n"
+                f"• *Garantía:* {articulos_desc}\n"
+                f"• *Concepto:* Liquidación Total y Retiro de Prenda\n"
+                f"• *Monto Cancelado:* *{monto_str}*\n\n"
+                f"🎉 *ESTADO:* PRENDA LIBERADA Y DISPONIBLE PARA RETIRO\n"
+                f"────────────────────────\n"
+                f"¡Muchas gracias por su preferencia! Puede pasar por caja a retirar su artículo portando su documento de identidad."
+            )
+        else:
+            fecha_venc = prestamo.fecha_finalizacion.strftime('%d/%m/%Y') if prestamo.fecha_finalizacion else "a convenir"
+            meses = 1
+            if prestamo.interes_un_mes > 0:
+                meses = max(1, int(round(self.monto_pagado / prestamo.interes_un_mes)))
+
+            return (
+                f"🧾 *COMPROBANTE DE PAGO - CASA DE EMPEÑO*\n"
+                f"────────────────────────\n"
+                f"Estimado/a *{nombre}*, le confirmamos la recepción conforme de su pago de interés.\n\n"
+                f"📋 *Detalles del Comprobante:*\n"
+                f"• *N° Recibo:* {recibo_num}\n"
+                f"• *Fecha y Hora:* {fecha_str}\n"
+                f"• *Préstamo:* {doc}\n"
+                f"• *Garantía:* {articulos_desc}\n"
+                f"• *Concepto:* Pago de Interés Mensual ({meses} mes/es) - Renovación de Plazo\n"
+                f"• *Monto Cobrado:* *{monto_str}*\n"
+                f"• *Próximo Vencimiento:* *{fecha_venc}*\n\n"
+                f"✅ *ESTADO:* Préstamo vigente y al día.\n"
+                f"────────────────────────\n"
+                f"¡Muchas gracias por su puntualidad y preferencia!"
+            )
+
+    @property
+    def whatsapp_url(self):
+        if not self.prestamo:
+            return None
+        tel = self.prestamo.telefono_whatsapp
+        if not tel:
+            return None
+        return f"https://wa.me/{tel}?text={urllib.parse.quote(self.whatsapp_mensaje)}"
+
     def __repr__(self):
         return f'<Pago {self.tipo_pago} {self.monto_pagado}>'
