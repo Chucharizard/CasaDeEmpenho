@@ -1,5 +1,7 @@
 from app.utils import get_bolivia_time, format_bolivian_phone
+import logging
 import os
+import threading
 import traceback
 from datetime import datetime
 from io import BytesIO
@@ -7,18 +9,15 @@ import urllib.parse
 
 from flask import current_app, flash, redirect, render_template, request, send_file, session, url_for
 from flask_login import login_required
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import joinedload
 
 from app import db
-from app.models import Articulo, Prestamo, ProductoVenta, Usuario
+from app.models import Articulo, Prestamo, ProductoVenta, Usuario, Configuracion
 from app.models.prestamo import Pago
+from app.services.pdf_service import generar_documento_legal, generar_comprobante_pago, generar_comprobante_imagen
+from app.services import whatsapp_service
 from app.routes.admin_shared import (
     VALID_LOAN_STATES,
     VALID_PAYMENT_TYPES,
@@ -34,163 +33,6 @@ from app.routes.admin_shared import (
     parse_positive_float,
     resolve_total_payment_due,
 )
-
-
-def generar_documento_legal(data):
-    buffer = BytesIO()
-    
-    fecha_inicio = data.get('fecha_inicio', get_bolivia_time())
-    fecha_vencimiento = data.get('fecha_vencimiento', get_bolivia_time())
-
-    dia_actual = fecha_inicio.strftime('%d')
-    mes_actual = fecha_inicio.strftime('%m')
-    anio_actual = fecha_inicio.strftime('%Y')
-    dia_vencimiento = fecha_vencimiento.strftime('%d')
-    mes_vencimiento = fecha_vencimiento.strftime('%m')
-    anio_vencimiento = fecha_vencimiento.strftime('%Y')
-    monto_con_interes = data.get('monto_prestado', 0)
-
-    # Configuración de página con márgenes de 54pt (0.75 pulgadas)
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=54,
-        leftMargin=54,
-        topMargin=54,
-        bottomMargin=54
-    )
-    
-    styles = getSampleStyleSheet()
-    
-    # Estilo del Título Principal
-    title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=15,
-        leading=18,
-        alignment=1,  # Centrado
-        textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=10
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'DocSubTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Oblique',
-        fontSize=10,
-        leading=13,
-        alignment=1,  # Centrado
-        textColor=colors.HexColor('#7f8c8d'),
-        spaceAfter=25
-    )
-    
-    # Estilos del contenido
-    label_style = ParagraphStyle(
-        'DocLabel',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=14,
-        textColor=colors.HexColor('#34495e')
-    )
-    
-    value_style = ParagraphStyle(
-        'DocValue',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=11,
-        leading=14,
-        textColor=colors.HexColor('#2c3e50')
-    )
-    
-    center_bold_style = ParagraphStyle(
-        'DocCenterBold',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=10,
-        leading=12,
-        alignment=1,  # Centrado
-        textColor=colors.HexColor('#2c3e50')
-    )
-
-    story = []
-
-    # Título y encabezado
-    story.append(Paragraph("DOCUMENTO PRIVADO DE CONSTANCIA", title_style))
-    story.append(Paragraph("Detalle de Préstamo Prendario y Recepción de Garantía", subtitle_style))
-    
-    # Estructura de filas para el contenido
-    data_rows = [
-        [Paragraph("Código Préstamo:", label_style), Paragraph(data.get('numero_documento', ''), value_style)],
-        [Paragraph("Cliente / Deudor:", label_style), Paragraph(data.get('nombre_cliente', ''), value_style)],
-        [Paragraph("Cédula de Identidad (CI):", label_style), Paragraph(data.get('ci_cliente', ''), value_style)],
-        [Paragraph("Artículo en Garantía:", label_style), Paragraph(data.get('articulo_descripcion', ''), value_style)],
-        [Paragraph("Monto Entregado:", label_style), Paragraph(f"Bs. {monto_con_interes:.2f}", value_style)],
-        [Paragraph("Fecha de Desembolso:", label_style), Paragraph(f"{dia_actual}/{mes_actual}/{anio_actual}", value_style)],
-        [Paragraph("Fecha de Vencimiento:", label_style), Paragraph(f"{dia_vencimiento}/{mes_vencimiento}/{anio_vencimiento}", value_style)],
-    ]
-    
-    # Creación de tabla con autoenvoltorio (las columnas son 130pt y 374pt, totalizando 504pt, que cabe en 612pt del ancho carta - 108pt márgenes)
-    table = Table(data_rows, colWidths=[130, 374])
-    table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-        ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor('#ecf0f1')), # Línea delgada divisoria entre celdas
-    ]))
-    
-    # Contenedor estético (recuadro) para la tabla
-    outer_table = Table([[table]], colWidths=[504])
-    outer_table.setStyle(TableStyle([
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#bdc3c7')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fafafa')),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-    ]))
-    
-    story.append(outer_table)
-    story.append(Spacer(1, 40))
-    
-    # Cláusula de conformidad
-    disclaimer_style = ParagraphStyle(
-        'DocDisclaimer',
-        parent=styles['Normal'],
-        fontName='Helvetica-Oblique',
-        fontSize=9,
-        leading=12,
-        alignment=4,  # Justificado
-        textColor=colors.HexColor('#7f8c8d'),
-        spaceAfter=50
-    )
-    disclaimer_text = (
-        "El deudor declara conformidad con los términos y condiciones del préstamo aquí detallados, "
-        "así como con la entrega del artículo descrito en calidad de prenda/garantía. De no efectuarse "
-        "la liquidación o renovación en las fechas pactadas, el artículo pasará a disposición de la administración."
-    )
-    story.append(Paragraph(disclaimer_text, disclaimer_style))
-    
-    # Firmas
-    signature_data = [
-        [
-            Paragraph("________________________________________<br/>Firma del Deudor (Cliente)", center_bold_style),
-            Paragraph("________________________________________<br/>Firma de la Administración", center_bold_style)
-        ]
-    ]
-    signature_table = Table(signature_data, colWidths=[252, 252])
-    signature_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-    ]))
-    
-    story.append(signature_table)
-    
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
 
 
 @admin.route('/nuevo-prestamo', methods=['GET', 'POST'])
@@ -383,6 +225,95 @@ def descargar_documento(prestamo_id):
     )
 
 
+@admin.route('/descargar-comprobante/<int:pago_id>')
+@login_required
+@admin_required
+def descargar_comprobante_pago(pago_id):
+    pago = db.session.get(Pago, pago_id)
+    if not pago:
+        flash('Pago no encontrado.', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    prestamo = pago.prestamo
+    usuario = prestamo.usuario
+    articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else 'Garantía prendaria'
+
+    meses_pagados = 1
+    if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
+        meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
+
+    pdf_data = generar_comprobante_pago({
+        'numero_recibo': f"REC-{pago.id:05d}",
+        'fecha_pago': pago.fecha_pago,
+        'numero_documento': prestamo.numero_documento,
+        'numero_prestamo': prestamo.numero_prestamo,
+        'nombre_cliente': usuario.nombre if usuario else 'N/A',
+        'ci_cliente': usuario.ci if usuario else 'N/A',
+        'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
+        'articulos_descripcion': articulos_desc,
+        'tipo_pago': pago.tipo_pago,
+        'meses_pagados': meses_pagados,
+        'monto_pagado': pago.monto_pagado,
+        'monto_prestado': prestamo.monto_prestado,
+        'fecha_vencimiento': prestamo.fecha_finalizacion,
+    })
+
+    pdf_stream = BytesIO(pdf_data.getvalue())
+    pdf_stream.seek(0)
+    filename = f"recibo_{pago.id:05d}_{prestamo.numero_documento}.pdf"
+    return send_file(
+        pdf_stream,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@admin.route('/recibo-imagen/<int:pago_id>')
+@login_required
+@admin_required
+def recibo_imagen(pago_id):
+    pago = db.session.get(Pago, pago_id)
+    if not pago:
+        flash('Pago no encontrado.', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    prestamo = pago.prestamo
+    usuario = prestamo.usuario
+    articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else 'Garantía prendaria'
+
+    meses_pagados = 1
+    if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
+        meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
+
+    img_data = generar_comprobante_imagen({
+        'numero_recibo': f"REC-{pago.id:05d}",
+        'fecha_pago': pago.fecha_pago,
+        'numero_documento': prestamo.numero_documento,
+        'numero_prestamo': prestamo.numero_prestamo,
+        'nombre_cliente': usuario.nombre if usuario else 'N/A',
+        'ci_cliente': usuario.ci if usuario else 'N/A',
+        'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
+        'articulos_descripcion': articulos_desc,
+        'tipo_pago': pago.tipo_pago,
+        'meses_pagados': meses_pagados,
+        'monto_pagado': pago.monto_pagado,
+        'monto_prestado': prestamo.monto_prestado,
+        'fecha_vencimiento': prestamo.fecha_finalizacion,
+    })
+
+    img_stream = BytesIO(img_data.getvalue())
+    img_stream.seek(0)
+    filename = f"recibo_{pago.id:05d}_{prestamo.numero_documento}.png"
+    return send_file(
+        img_stream,
+        mimetype='image/png',
+        as_attachment=False,
+        download_name=filename,
+    )
+
+
+
 @admin.route('/download-pdf/<documento>')
 @login_required
 @admin_required
@@ -405,6 +336,9 @@ def ver_prestamo(prestamo_id):
         prestamo.estado = 'retencion'
         db.session.commit()
 
+    pdf_pago_id = session.pop('pdf_pago_id', None)
+    pago_reciente = db.session.get(Pago, pdf_pago_id) if pdf_pago_id else None
+
     return render_template(
         'admin/ver_prestamo.html',
         prestamo=prestamo,
@@ -413,6 +347,8 @@ def ver_prestamo(prestamo_id):
         timeline=build_prestamo_timeline(prestamo),
         total_pago_requerido=resolve_total_payment_due(prestamo),
         whatsapp_url=prestamo.whatsapp_url,
+        pdf_pago_id=pdf_pago_id,
+        pago_reciente=pago_reciente,
     )
 
 
@@ -488,6 +424,80 @@ def editar_usuario(usuario_id):
     return redirect(next_url)
 
 
+logger = logging.getLogger(__name__)
+
+
+def _enviar_recibo_whatsapp(pago_id, app):
+    """Envía el recibo como imagen por WhatsApp en un hilo de fondo.
+
+    Se ejecuta en un thread separado para no bloquear la respuesta HTTP.
+    Si el bot no está conectado o falla, simplemente logueamos y seguimos.
+    """
+    if app.config.get('TESTING'):
+        return
+
+    try:
+        with app.app_context():
+            if not whatsapp_service.esta_conectado():
+                logger.info('WhatsApp Bot no conectado — recibo no enviado.')
+                return
+
+            pago = Pago.query.get(pago_id)
+            if not pago or not pago.prestamo:
+                return
+
+            prestamo = pago.prestamo
+            usuario = prestamo.usuario
+
+            telefono = prestamo.telefono_whatsapp
+            if not telefono:
+                logger.info(f'Pago #{pago_id}: cliente sin teléfono registrado.')
+                return
+
+            # Construir el dict con los datos necesarios para la imagen
+            articulos_desc = ", ".join(
+                a.nombre for a in prestamo.articulos
+            ) if prestamo.articulos else 'Garantía prendaria'
+
+            meses_pagados = 1
+            if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
+                meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
+
+            img_buffer = generar_comprobante_imagen({
+                'numero_recibo': f"REC-{pago.id:05d}",
+                'fecha_pago': pago.fecha_pago,
+                'numero_documento': prestamo.numero_documento,
+                'numero_prestamo': prestamo.numero_prestamo,
+                'nombre_cliente': usuario.nombre if usuario else 'N/A',
+                'ci_cliente': usuario.ci if usuario else 'N/A',
+                'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
+                'articulos_descripcion': articulos_desc,
+                'tipo_pago': pago.tipo_pago,
+                'meses_pagados': meses_pagados,
+                'monto_pagado': pago.monto_pagado,
+                'monto_prestado': prestamo.monto_prestado,
+                'fecha_vencimiento': prestamo.fecha_finalizacion,
+            })
+
+            if not img_buffer:
+                logger.warning(f'Pago #{pago_id}: no se pudo generar imagen.')
+                return
+
+            imagen_bytes = img_buffer.getvalue()
+
+            # Preparar caption
+            tipo_label = 'Pago Total (Liquidación)' if pago.tipo_pago == 'total' else 'Pago de Interés'
+            caption = f'🧾 {tipo_label} - Casa de Empeño'
+
+            resultado = whatsapp_service.enviar_imagen(telefono, imagen_bytes, caption)
+            if resultado.get('success'):
+                logger.info(f'✅ Recibo #{pago_id} enviado por WhatsApp a +{telefono}')
+            else:
+                logger.warning(f'❌ Recibo #{pago_id} NO enviado: {resultado.get("error")}')
+    except Exception as e:
+        logger.error(f'Error al enviar recibo WhatsApp (pago #{pago_id}): {e}')
+
+
 @admin.route('/registrar-pago/<int:prestamo_id>', methods=['POST'])
 @login_required
 @admin_required
@@ -524,13 +534,27 @@ def registrar_pago(prestamo_id):
             prestamo.tipo_ultimo_pago = 'interes'
             prestamo.monto_ultimo_pago = monto
 
-            db.session.add(Pago(
+            nuevo_pago = Pago(
                 prestamo_id=prestamo_id,
                 tipo_pago='interes',
                 monto_pagado=monto,
                 fecha_pago=ahora,
-            ))
+            )
+            db.session.add(nuevo_pago)
             db.session.commit()
+            session['pdf_pago_id'] = nuevo_pago.id
+
+            # Despachar automáticamente o solicitar confirmación según configuración
+            whatsapp_auto = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
+            if whatsapp_auto:
+                threading.Thread(
+                    target=_enviar_recibo_whatsapp,
+                    args=(nuevo_pago.id, current_app._get_current_object()),
+                    daemon=True,
+                ).start()
+            else:
+                session['preguntar_envio_whatsapp_pago_id'] = nuevo_pago.id
+
             flash(
                 f'Pago de interés ({meses_pagados} mes/es) registrado exitosamente. Nuevo vencimiento: {prestamo.fecha_finalizacion.strftime("%d/%m/%Y")}.',
                 'success',
@@ -543,17 +567,31 @@ def registrar_pago(prestamo_id):
                 )
 
             ahora = get_bolivia_time()
-            db.session.add(Pago(
+            nuevo_pago = Pago(
                 prestamo_id=prestamo_id,
                 tipo_pago='total',
                 monto_pagado=monto,
                 fecha_pago=ahora,
-            ))
+            )
+            db.session.add(nuevo_pago)
             prestamo.estado = 'finalizado'
             prestamo.ultimo_pago = ahora
             prestamo.tipo_ultimo_pago = 'total'
             prestamo.monto_ultimo_pago = monto
             db.session.commit()
+            session['pdf_pago_id'] = nuevo_pago.id
+
+            # Despachar automáticamente o solicitar confirmación según configuración
+            whatsapp_auto = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
+            if whatsapp_auto:
+                threading.Thread(
+                    target=_enviar_recibo_whatsapp,
+                    args=(nuevo_pago.id, current_app._get_current_object()),
+                    daemon=True,
+                ).start()
+            else:
+                session['preguntar_envio_whatsapp_pago_id'] = nuevo_pago.id
+
             flash('Pago total registrado exitosamente. El préstamo fue finalizado y la prenda liberada.', 'success')
     except Exception as exc:
         db.session.rollback()

@@ -1,7 +1,7 @@
 import time
 from threading import Lock
 
-from flask import Blueprint, render_template, request, flash, redirect, url_for
+from flask import Blueprint, current_app, render_template, request, flash, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user, login_required
 from app.models import Usuario
@@ -128,6 +128,8 @@ def logout():
 
 @auth.route('/dev-login')
 def dev_login():
+    if not (current_app.debug or current_app.config.get('ENABLE_DEV_LOGIN')):
+        return redirect(url_for('auth.login'))
     if request.remote_addr not in ('127.0.0.1', '::1', 'localhost'):
         return redirect(url_for('auth.login'))
     admin_user = Usuario.query.filter_by(es_admin=True).first()

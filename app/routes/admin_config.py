@@ -135,6 +135,13 @@ def configuracion():
                 flash(f'Tema actualizado a: {THEMES[tema]["name"]}', 'success')
             else:
                 flash('Tema no valido.', 'danger')
+        elif accion == 'cambiar_whatsapp':
+            auto_envio = 'true' if request.form.get('whatsapp_auto_envio') == 'on' else 'false'
+            Configuracion.set_valor('whatsapp_auto_envio', auto_envio)
+            if auto_envio == 'true':
+                flash('Modo de WhatsApp: Envío 100% automático activado al registrar pagos.', 'success')
+            else:
+                flash('Modo de WhatsApp: Confirmación previa activada (se preguntará con ventana emergente).', 'info')
 
     total_usuarios = Usuario.query.count()
     total_prestamos = Prestamo.query.count()
@@ -161,6 +168,7 @@ def configuracion():
     }
 
     tema_actual = Configuracion.get_valor('tema_sistema', 'default')
+    whatsapp_auto_envio = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
     tasas = {
         'prendario': get_tasa_configurada('interes_prendario', 10.0),
         'maximo': get_tasa_configurada('interes_maximo', MAX_ALLOWED_INTEREST),
@@ -180,5 +188,6 @@ def configuracion():
         sistema_info=sistema_info,
         backups=list_backup_files(),
         themes=THEMES,
-        tema_actual=tema_actual
+        tema_actual=tema_actual,
+        whatsapp_auto_envio=whatsapp_auto_envio,
     )

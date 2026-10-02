@@ -18,6 +18,8 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     try:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.close()
     except Exception:
         pass
@@ -103,24 +105,6 @@ def create_app(test_config=None):
 
             flash('La sesion del formulario expiro. Intenta nuevamente.', 'danger')
             return redirect(request.referrer or url_for('public.index'))
-
-        try:
-            from app.sync.sync_triggers import setup_sync_triggers
-            setup_sync_triggers(app)
-            app.logger.info('Sistema de sincronizacion activado')
-        except ImportError:
-            app.logger.info('Modulo de sincronizacion no disponible')
-        except Exception as exc:
-            app.logger.warning('Error al activar sincronizacion: %s', exc)
-
-        try:
-            from app.routes.sync_routes import sync_bp
-            app.register_blueprint(sync_bp)
-            app.logger.info('Rutas de sincronizacion registradas')
-        except ImportError:
-            pass
-        except Exception as exc:
-            app.logger.warning('Error al registrar rutas de sync: %s', exc)
 
         @login_manager.user_loader
         def load_user(user_id):

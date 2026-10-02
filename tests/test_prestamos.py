@@ -416,3 +416,116 @@ class TestPrestamosExtensionesyDecomiso:
         p = Prestamo.query.filter_by(numero_documento='PREST-0001').first()
         assert p is not None
         assert p.fecha_inicio.year == 2025
+
+
+# ===========================================================================
+# Generación y Descarga de Documentos PDF
+# ===========================================================================
+
+class TestDocumentosPDF:
+
+    def test_descargar_contrato_pdf(self, admin_client, prestamo_prendario):
+        resp = admin_client.get(f'/admin/descargar-documento/{prestamo_prendario.id}')
+        assert resp.status_code == 200
+        assert resp.content_type == 'application/pdf'
+        assert resp.data.startswith(b'%PDF')
+
+    def test_descargar_comprobante_pago_pdf(self, admin_client, prestamo_prendario):
+        # Registrar un pago primero
+        cuota = prestamo_prendario.interes_un_mes
+        admin_client.post(
+            f'/admin/registrar-pago/{prestamo_prendario.id}',
+            data={'tipo_pago': 'interes', 'monto': str(cuota), 'meses_interes': '1'},
+        )
+        _db.session.refresh(prestamo_prendario)
+        assert len(prestamo_prendario.pagos) == 1
+        pago = prestamo_prendario.pagos[0]
+
+        resp = admin_client.get(f'/admin/descargar-comprobante/{pago.id}')
+        assert resp.status_code == 200
+        assert resp.content_type == 'application/pdf'
+        assert resp.data.startswith(b'%PDF')
+
+    def test_descargar_comprobante_inexistente(self, admin_client):
+        resp = admin_client.get('/admin/descargar-comprobante/99999', follow_redirects=True)
+        assert resp.status_code == 200
+        assert 'Pago no encontrado' in resp.get_data(as_text=True)
+
+    def test_descargar_comprobante_imagen_png(self, admin_client, prestamo_prendario):
+        cuota = prestamo_prendario.interes_un_mes
+        admin_client.post(
+            f'/admin/registrar-pago/{prestamo_prendario.id}',
+            data={'tipo_pago': 'interes', 'monto': str(cuota), 'meses_interes': '1'},
+        )
+        _db.session.refresh(prestamo_prendario)
+        pago = prestamo_prendario.pagos[0]
+
+        resp = admin_client.get(f'/admin/recibo-imagen/{pago.id}')
+        assert resp.status_code == 200
+        assert resp.content_type == 'image/png'
+        assert resp.data.startswith(b'\x89PNG\r\n\x1a\n')
+
+    def test_recibo_imagen_inexistente(self, admin_client):
+        resp = admin_client.get('/admin/recibo-imagen/99999', follow_redirects=True)
+        assert resp.status_code == 200
+        assert 'Pago no encontrado' in resp.get_data(as_text=True)
+
+
+
+# ===========================================================================
+# Envío de Recibo por WhatsApp
+# ===========================================================================
+
+class TestWhatsAppRecibo:
+
+    def test_whatsapp_url_pago_interes(self, admin_client, prestamo_prendario):
+        prestamo_prendario.usuario.telefono = '72345678'
+        _db.session.commit()
+
+        cuota = prestamo_prendario.interes_un_mes
+        admin_client.post(
+            f'/admin/registrar-pago/{prestamo_prendario.id}',
+            data={'tipo_pago': 'interes', 'monto': str(cuota), 'meses_interes': '1'},
+        )
+        _db.session.refresh(prestamo_prendario)
+        pago = prestamo_prendario.pagos[0]
+
+        assert pago.whatsapp_url is not None
+        assert 'https://wa.me/59172345678' in pago.whatsapp_url
+        assert 'COMPROBANTE' in pago.whatsapp_url
+        assert pago.whatsapp_mensaje is not None
+        assert 'COMPROBANTE DE PAGO' in pago.whatsapp_mensaje
+        assert f"{pago.monto_pagado:.2f}" in pago.whatsapp_mensaje
+
+    def test_whatsapp_url_pago_total(self, admin_client, prestamo_prendario):
+        prestamo_prendario.usuario.telefono = '72345678'
+        _db.session.commit()
+
+        admin_client.post(
+            f'/admin/registrar-pago/{prestamo_prendario.id}',
+            data={'tipo_pago': 'total', 'monto': str(prestamo_prendario.monto_liquidacion_actual)},
+        )
+        _db.session.refresh(prestamo_prendario)
+        pago = prestamo_prendario.pagos[0]
+
+        assert pago.whatsapp_url is not None
+        assert 'https://wa.me/59172345678' in pago.whatsapp_url
+        assert 'COMPROBANTE' in pago.whatsapp_url
+        assert 'Liquidación Total' in pago.whatsapp_mensaje
+        assert 'PRENDA LIBERADA' in pago.whatsapp_mensaje
+
+    def test_whatsapp_url_cliente_sin_telefono(self, admin_client, prestamo_prendario):
+        prestamo_prendario.usuario.telefono = None
+        _db.session.commit()
+
+        cuota = prestamo_prendario.interes_un_mes
+        admin_client.post(
+            f'/admin/registrar-pago/{prestamo_prendario.id}',
+            data={'tipo_pago': 'interes', 'monto': str(cuota), 'meses_interes': '1'},
+        )
+        _db.session.refresh(prestamo_prendario)
+        pago = prestamo_prendario.pagos[0]
+        assert pago.whatsapp_url is None
+        assert pago.whatsapp_mensaje is not None
+
+

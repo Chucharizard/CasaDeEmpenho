@@ -687,6 +687,48 @@
             <article class="settings-panel">
                 <div class="settings-panel-header">
                     <div>
+                        <h3 class="settings-panel-title"><i class="bi bi-whatsapp" style="color: #25d366;"></i> WhatsApp y Recibos Digitales</h3>
+                        <p class="settings-panel-subtitle">Define si los comprobantes con imagen se envían solos de forma automática o si el sistema debe pedir confirmación.</p>
+                    </div>
+                </div>
+                <div class="settings-panel-body">
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="accion" value="cambiar_whatsapp">
+                        
+                        <div class="p-3 mb-3 rounded" style="background: var(--bg-corporativo); border: 1px solid var(--borde);">
+                            <div class="form-check form-switch d-flex align-items-center justify-content-between p-0 m-0">
+                                <div>
+                                    <label class="form-check-label fw-bold mb-1 d-block" for="whatsapp_auto_envio" style="cursor: pointer; color: var(--color-texto-principal); font-size: 1rem;">
+                                        Envío 100% Automático de Recibos
+                                    </label>
+                                    <div class="text-muted small" style="max-width: 480px;">
+                                        {% if whatsapp_auto_envio %}
+                                            <span class="text-success fw-bold"><i class="bi bi-lightning-charge-fill me-1"></i> Activado:</span> Al registrar cualquier pago, el recibo se despacha solo en segundo plano sin clics extras.
+                                        {% else %}
+                                            <span class="text-primary fw-bold"><i class="bi bi-question-circle-fill me-1"></i> Confirmación manual:</span> Al registrar el pago saldrá una ventana preguntando si deseas enviar la imagen al cliente.
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <input class="form-check-input ms-3" type="checkbox" role="switch" id="whatsapp_auto_envio" name="whatsapp_auto_envio" style="width: 3rem; height: 1.6rem; cursor: pointer;" {% if whatsapp_auto_envio %}checked{% endif %} onchange="this.form.submit()">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2">
+                            <button type="submit" class="settings-btn settings-btn-primary">
+                                <i class="bi bi-save"></i> Guardar Preferencia
+                            </button>
+                            <a href="{{ url_for('admin.whatsapp_panel') }}" class="btn btn-outline-success btn-sm" style="border-radius: 10px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <i class="bi bi-qr-code-scan"></i> Estado y QR de WhatsApp
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </article>
+
+            <article class="settings-panel">
+                <div class="settings-panel-header">
+                    <div>
                         <h3 class="settings-panel-title"><i class="bi bi-lightning-charge"></i> Atajos operativos</h3>
                         <p class="settings-panel-subtitle">Accesos rapidos a datos de sistema y herramientas que ayudan en el trabajo diario.</p>
                     </div>

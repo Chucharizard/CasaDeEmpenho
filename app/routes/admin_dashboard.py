@@ -3,8 +3,8 @@ from app.utils import get_bolivia_time
 from dateutil.relativedelta import relativedelta
 from flask import jsonify, render_template, request, session
 from flask_login import login_required
-from sqlalchemy import or_
-from sqlalchemy.orm import contains_eager
+from sqlalchemy import func, or_
+from sqlalchemy.orm import contains_eager, selectinload
 
 from app import db
 from app.models import Articulo, Prestamo, Usuario
@@ -87,13 +87,20 @@ def dashboard():
         if p.estado == 'activo' and hoy <= p.fecha_finalizacion <= limite_vencimiento
     )
 
-    totales = {}
-    for estado in ['activo', 'retencion']:
-        estado_prestamos = Prestamo.query.filter_by(estado=estado, tipo_prestamo='prendario').all()
-        totales[estado] = {
-            'cantidad': len(estado_prestamos),
-            'total': sum(item.monto_prestado for item in estado_prestamos),
-        }
+    totales = {'activo': {'cantidad': 0, 'total': 0.0}, 'retencion': {'cantidad': 0, 'total': 0.0}}
+    totales_query = (
+        db.session.query(
+            Prestamo.estado,
+            func.count(Prestamo.id),
+            func.coalesce(func.sum(Prestamo.monto_prestado), 0.0)
+        )
+        .filter(Prestamo.tipo_prestamo == 'prendario', Prestamo.estado.in_(['activo', 'retencion']))
+        .group_by(Prestamo.estado)
+        .all()
+    )
+    for estado, cant, total in totales_query:
+        if estado in totales:
+            totales[estado] = {'cantidad': cant, 'total': float(total)}
 
     pdf_prestamo_id = session.pop('pdf_prestamo_id', None) or session.pop('pdf_prestamo_anterior_id', None)
 
@@ -120,7 +127,7 @@ def dashboard():
 @login_required
 @admin_required
 def clientes():
-    clientes_list = Usuario.query.filter_by(es_admin=False).all()
+    clientes_list = Usuario.query.filter_by(es_admin=False).options(selectinload(Usuario.prestamos)).all()
     total_clientes = len(clientes_list)
     clientes_activos = sum(1 for cliente in clientes_list if any(prestamo.estado == 'activo' for prestamo in cliente.prestamos))
     total_prestamos = sum(len(cliente.prestamos) for cliente in clientes_list)

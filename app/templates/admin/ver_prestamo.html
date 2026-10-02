@@ -48,11 +48,47 @@
 <div class="prestamo-container">
     
     <!-- Actions / Back -->
-    <div class="mb-3">
+    <div class="mb-3 d-flex justify-content-between align-items-center">
         <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;">
             <i class="bi bi-arrow-left"></i> Volver al Dashboard
         </a>
+        <a href="{{ url_for('admin.descargar_documento', prestamo_id=prestamo.id) }}" target="_blank" class="btn btn-outline-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Descargar o imprimir contrato de empeño en PDF">
+            <i class="bi bi-file-earmark-pdf"></i> Imprimir Contrato PDF
+        </a>
     </div>
+
+    {% if pdf_pago_id %}
+    <div class="alert alert-success alert-dismissible fade show shadow-sm d-flex flex-wrap align-items-center justify-content-between mb-4 p-3 border border-success gap-3" role="alert">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-check-circle-fill text-success fs-2 flex-shrink-0"></i>
+            <div>
+                <h5 class="mb-1 fw-bold text-success">¡Pago registrado exitosamente!</h5>
+                <p class="mb-0 text-muted">El comprobante oficial ha sido generado. Puedes imprimirlo en papel o enviárselo directamente al cliente por WhatsApp.</p>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ url_for('admin.descargar_comprobante_pago', pago_id=pdf_pago_id) }}" target="_blank" class="btn btn-outline-primary fw-bold px-3 py-2 shadow-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i class="bi bi-printer-fill"></i> Imprimir PDF
+            </a>
+            <a href="{{ url_for('admin.recibo_imagen', pago_id=pdf_pago_id) }}" target="_blank" class="btn btn-outline-secondary fw-bold px-3 py-2 shadow-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Ver o descargar imagen PNG del ticket">
+                <i class="bi bi-image"></i> Ver Imagen
+            </a>
+            {% if pago_reciente and pago_reciente.whatsapp_url %}
+            <button type="button" class="btn btn-success fw-bold px-3 py-2 shadow-sm" onclick="copiarReciboYAbrirWhatsApp({{ pdf_pago_id }}, '{{ pago_reciente.whatsapp_url|safe }}', this)" style="display: inline-flex; align-items: center; gap: 0.4rem; background-color: #25d366; border-color: #25d366; color: white;" title="Copia el recibo como imagen y abre el chat de WhatsApp: solo haz Ctrl + V para enviarla">
+                <i class="bi bi-clipboard-check-fill"></i> Copiar Imagen y Abrir WhatsApp
+            </button>
+            <a href="{{ pago_reciente.whatsapp_url }}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-2" title="Enviar solamente como texto formateado por WhatsApp">
+                <i class="bi bi-chat-text"></i> Texto
+            </a>
+            {% else %}
+            <button type="button" class="btn btn-outline-secondary fw-bold px-3 py-2" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Cliente sin teléfono registrado. Clic para agregarlo.">
+                <i class="bi bi-whatsapp"></i> Registrar Teléfono
+            </button>
+            {% endif %}
+            <button type="button" class="btn-close position-static p-2 ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Header principal -->
     <div class="page-header mb-4">
@@ -291,6 +327,7 @@
                         <th class="px-4 py-3"><i class="bi bi-tag"></i> Tipo</th>
                         <th class="px-4 py-3"><i class="bi bi-cash-stack"></i> Monto</th>
                         <th class="px-4 py-3"><i class="bi bi-graph-up"></i> Estado Resultante</th>
+                        <th class="px-4 py-3 text-end"><i class="bi bi-printer"></i> Comprobante</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -316,11 +353,36 @@
                                         <span class="badge bg-success">Activo</span>
                                     {% endif %}
                                 </td>
+                                <td class="px-4 py-3 text-end">
+                                    <div class="d-inline-flex gap-1 align-items-center">
+                                        <a href="{{ url_for('admin.descargar_comprobante_pago', pago_id=pago.id) }}" target="_blank" class="btn btn-sm btn-outline-primary" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;" title="Descargar e imprimir comprobante PDF oficial">
+                                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                                        </a>
+                                        <a href="{{ url_for('admin.recibo_imagen', pago_id=pago.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;" title="Ver o descargar imagen PNG del ticket">
+                                            <i class="bi bi-image"></i>
+                                        </a>
+                                        {% if pago.prestamo.telefono_whatsapp %}
+                                        <form action="{{ url_for('admin.whatsapp_reenviar_recibo', pago_id=pago.id) }}" method="POST" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-sm btn-success" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem; background-color: #128c7e; border-color: #128c7e; color: white;" title="Enviar comprobante directamente al WhatsApp del cliente a través del Bot">
+                                                <i class="bi bi-send-fill"></i> Auto WA
+                                            </button>
+                                        </form>
+                                        <button type="button" class="btn btn-sm btn-outline-success" onclick="copiarReciboYAbrirWhatsApp({{ pago.id }}, '{{ pago.whatsapp_url|safe }}', this)" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;" title="Abrir WhatsApp Web manualmente">
+                                            <i class="bi bi-whatsapp"></i> Manual
+                                        </button>
+                                        {% else %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;" title="Cliente sin teléfono. Clic para registrarlo.">
+                                            <i class="bi bi-whatsapp"></i> Sin Tel.
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
                             </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="4" class="text-center p-5 text-muted">
+                            <td colspan="5" class="text-center p-5 text-muted">
                                 <i class="bi bi-receipt display-4 opacity-25 mb-3 d-block"></i>
                                 <span>No se han registrado pagos para este préstamo.</span>
                             </td>
@@ -705,5 +767,156 @@ function actualizarUrlWhatsApp() {
         btn.href = `https://wa.me/${telefono}?text=${encodedText}`;
     }
 }
+
+async function copiarReciboYAbrirWhatsApp(pagoId, whatsappUrl, btnElement) {
+    if (!pagoId) return;
+    const originalHtml = btnElement ? btnElement.innerHTML : '';
+    if (btnElement) {
+        btnElement.disabled = true;
+        btnElement.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Preparando imagen...';
+    }
+
+    try {
+        // 1. Obtener imagen PNG en Blob desde el endpoint
+        const response = await fetch(`/admin/recibo-imagen/${pagoId}`);
+        if (!response.ok) {
+            throw new Error('No se pudo generar la imagen del recibo.');
+        }
+        const blob = await response.blob();
+
+        // 2. Intentar copiar al portapapeles como imagen PNG
+        let copiadoExitoso = false;
+        if (navigator.clipboard && window.ClipboardItem) {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+                copiadoExitoso = true;
+            } catch (clipErr) {
+                console.warn('Escritura de imagen en portapapeles no permitida directamente:', clipErr);
+            }
+        }
+
+        // 3. Abrir la ventana de WhatsApp Web / App
+        if (whatsappUrl) {
+            window.open(whatsappUrl, '_blank');
+        }
+
+        // 4. Mostrar confirmación al usuario
+        if (copiadoExitoso) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Recibo copiado como Imagen!',
+                    html: 'La imagen del recibo está lista en tu <b>portapapeles</b>.<br><br>En la ventana de WhatsApp que se acaba de abrir, presiona <kbd>Ctrl + V</kbd> para pegarla y enviarla.',
+                    confirmButtonText: '¡Entendido!',
+                    confirmButtonColor: '#25d366'
+                });
+            } else {
+                alert('¡Recibo copiado como imagen! En la ventana de WhatsApp presiona Ctrl + V para pegarla y enviarla.');
+            }
+        } else {
+            // Descargar automáticamente la imagen PNG si el navegador no permite clipboard directo
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `Recibo_Pago_${pagoId}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Imagen descargada',
+                    html: 'Se ha descargado la imagen del recibo (<b>Recibo_Pago_' + pagoId + '.png</b>).<br><br>Puedes arrastrarla o adjuntarla directamente al chat de WhatsApp.',
+                    confirmButtonText: 'De acuerdo'
+                });
+            } else {
+                alert('Se ha descargado la imagen del recibo. Puedes arrastrarla o adjuntarla en WhatsApp.');
+            }
+        }
+    } catch (err) {
+        console.error('Error al procesar el recibo como imagen:', err);
+        if (whatsappUrl) {
+            window.open(whatsappUrl, '_blank');
+        }
+        alert('Se abrió WhatsApp con el recibo en formato texto.');
+    } finally {
+        if (btnElement) {
+            btnElement.disabled = false;
+            btnElement.innerHTML = originalHtml;
+        }
+    }
+}
 </script>
+
+{% set prompt_pago_id = session.pop('preguntar_envio_whatsapp_pago_id', None) %}
+{% if prompt_pago_id %}
+<!-- Modal: Preguntar si desea enviar comprobante por WhatsApp -->
+<div class="modal fade" id="modalConfirmarEnvioWhatsApp" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="modalConfirmarEnvioWhatsAppLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; overflow: hidden;">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #128c7e, #075e54); border: none; padding: 1.25rem 1.5rem;">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="modalConfirmarEnvioWhatsAppLabel">
+                    <i class="bi bi-whatsapp fs-4"></i> ¿Enviar Recibo por WhatsApp?
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div style="width: 72px; height: 72px; border-radius: 50%; background: #dcfce7; color: #166534; display: inline-flex; align-items: center; justify-content: center; font-size: 2.2rem; margin-bottom: 1.2rem;">
+                    <i class="bi bi-receipt"></i>
+                </div>
+                <h5 class="fw-bold mb-2" style="color: var(--color-texto-principal);">¡Pago Registrado con Éxito!</h5>
+                <p class="text-muted mb-3" style="font-size: 0.95rem;">
+                    ¿Deseas enviar el comprobante de pago oficial en imagen directamente al WhatsApp del cliente?
+                </p>
+
+                {% if prestamo.telefono_whatsapp %}
+                <div class="p-3 rounded mb-4 text-start" style="background: var(--bg-corporativo); border: 1px solid var(--borde);">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small">Cliente:</span>
+                        <span class="fw-bold">{{ prestamo.usuario.nombre }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">WhatsApp:</span>
+                        <span class="fw-bold text-success"><i class="bi bi-telephone-fill me-1"></i> +{{ prestamo.telefono_whatsapp }}</span>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 justify-content-center">
+                    <form action="{{ url_for('admin.whatsapp_reenviar_recibo', pago_id=prompt_pago_id) }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-success px-4 py-2" style="background: #25d366; border-color: #25d366; border-radius: 10px; font-weight: 600;">
+                            <i class="bi bi-send-fill me-1"></i> Sí, Enviar Recibo
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-light border px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 500;">
+                        No, Omitir
+                    </button>
+                </div>
+                {% else %}
+                <div class="alert alert-warning text-start mb-3" style="border-radius: 12px; font-size: 0.9rem;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> El cliente no tiene teléfono celular registrado. Puedes agregarlo desde la sección de cliente.
+                </div>
+                <button type="button" class="btn btn-secondary px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px;">
+                    Cerrar
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('modalConfirmarEnvioWhatsApp');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+});
+</script>
+{% endif %}
 {% endblock %}
