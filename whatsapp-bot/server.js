@@ -38,10 +38,12 @@ function formatPhone(phone) {
 
 function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), authDir = AUTH_DIR } = {}) {
     let socket = null, connecting = null, timer = null, generation = 0, attempts = 0;
+    let stopped = false;
+    const credentialWrites = new Set();
     let messageStore = null;
     const state = { status: 'disconnected', linkedNumber: null, qr: null, error: null };
     function retry() {
-        if (timer || attempts >= 5) return;
+        if (stopped || timer || attempts >= 5) return;
         attempts++;
         timer = setTimeout(() => { timer = null; connect().catch(() => {}); }, Math.min(attempts * 3000, 20000));
         timer.unref();
@@ -49,6 +51,7 @@ function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), 
     async function connect(force = false) {
         if (connecting) return connecting;
         if (!force && state.status === 'connected') return;
+        stopped = false;
         clearTimeout(timer); timer = null;
         const run = async () => {
             const current = ++generation;
@@ -68,7 +71,11 @@ function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), 
                 if (current === generation) for (const message of messages) messageStore.remember(message);
             });
             next.ev.on('creds.update', () => {
-                if (current === generation) saveCreds().catch(error => console.error('No se guardaron las credenciales:', error.message));
+                if (current === generation) {
+                    const write = saveCreds().catch(error => console.error('No se guardaron las credenciales:', error.message));
+                    credentialWrites.add(write);
+                    write.finally(() => credentialWrites.delete(write));
+                }
             });
             next.ev.on('connection.update', async update => {
                 if (current !== generation) return;
@@ -91,8 +98,10 @@ function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), 
             });
         };
         connecting = run().catch(error => {
-            state.status = 'disconnected'; state.error = error.message; retry();
-            console.error('[WhatsApp] No se pudo conectar:', error.message);
+            if (!stopped) {
+                state.status = 'disconnected'; state.error = error.message; retry();
+                console.error('[WhatsApp] No se pudo conectar:', error.message);
+            }
             throw error;
         }).finally(() => { connecting = null; });
         return connecting;
@@ -100,6 +109,14 @@ function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), 
     return {
         state,
         connect,
+        async stop() {
+            stopped = true;
+            ++generation; clearTimeout(timer); timer = null; attempts = 0;
+            const previous = socket; socket = null;
+            state.status = 'stopped'; state.qr = null; state.linkedNumber = null;
+            if (previous) previous.end(new Error('Bot apagado desde Configuración'));
+            await Promise.allSettled([...credentialWrites]);
+        },
         async send(jid, message) {
             if (state.status !== 'connected' || !socket) throw new Error('WhatsApp no está conectado.');
             const sent = await socket.sendMessage(jid, message);
@@ -119,15 +136,19 @@ function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), 
     };
 }
 
-function createApp({ token, bot }) {
+function createApp({ token, bot, onShutdown = () => {} }) {
     if (!token || token.length < 16) throw new Error('Se requiere una clave local de API de al menos 16 caracteres.');
     const app = express();
+    let shuttingDown = false;
     app.disable('x-powered-by');
     app.use((req, res, next) => {
         const supplied = Buffer.from(req.get('X-API-Key') || '');
         const expected = Buffer.from(token);
         if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
             return res.status(401).json({ success: false, error: 'Acceso no autorizado.' });
+        }
+        if (shuttingDown && !['/status', '/shutdown'].includes(req.path)) {
+            return res.status(503).json({ success: false, error: 'El bot está apagándose.' });
         }
         next();
     });
@@ -172,12 +193,27 @@ function createApp({ token, bot }) {
         try { await bot.logout(); res.json({ success: true, message: 'Sesión cerrada.' }); }
         catch (error) { res.status(500).json({ success: false, error: error.message }); }
     });
+    app.post('/shutdown', async (req, res) => {
+        if (shuttingDown) return res.json({ success: true, message: 'El bot está apagándose.' });
+        shuttingDown = true;
+        try {
+            await bot.stop();
+            res.once('finish', onShutdown);
+            res.json({ success: true, message: 'Bot apagado; la sesión se conserva.' });
+        } catch (error) {
+            shuttingDown = false;
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
     return app;
 }
 
 if (require.main === module) {
     const bot = createDriver();
-    createApp({ token: loadToken(), bot }).listen(PORT, HOST, () => {
+    const server = createApp({ token: loadToken(), bot, onShutdown() {
+        server.close(() => process.exit(0));
+        setTimeout(() => process.exit(0), 2000).unref();
+    } }).listen(PORT, HOST, () => {
         console.log('[WhatsApp] Servicio local en http://' + HOST + ':' + PORT);
         bot.connect().catch(() => {});
     });

@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 def send_receipt(pago_id, force=False):
     with current_app.extensions['database_lock']:
+        if not whatsapp_service.esta_habilitado():
+            return whatsapp_service.deshabilitado()
         pago = db.session.get(Pago, pago_id)
         if not pago:
             return {'success': False, 'error': 'Pago no encontrado.'}
@@ -62,14 +64,10 @@ def start_delivery_worker(app):
         while not stop.is_set():
             try:
                 with app.app_context(), app.extensions['database_lock']:
-                    # Un envío reciente puede pertenecer a otra instancia activa.
-                    Pago.query.filter(Pago.whatsapp_estado == 'enviando',
-                                      Pago.whatsapp_ultimo_intento < get_bolivia_time() - timedelta(minutes=5)).update({
-                        Pago.whatsapp_estado: 'incierto',
-                        Pago.whatsapp_error: 'Se interrumpió el envío. Verifica WhatsApp antes de reintentar.',
-                    })
-                    db.session.commit()
-                    ids = [p.id for p in Pago.query.filter_by(whatsapp_estado='pendiente').order_by(Pago.id).limit(10)]
+                    if not whatsapp_service.esta_habilitado():
+                        ids = []
+                    else:
+                        ids = pending_receipt_ids()
                 for pago_id in ids:
                     if stop.is_set():
                         return
@@ -81,3 +79,17 @@ def start_delivery_worker(app):
     thread = threading.Thread(target=run, name='recibos-pendientes', daemon=True)
     app.extensions['delivery_worker'] = (thread, stop)
     thread.start()
+
+
+def pending_receipt_ids():
+    """Solo despacha pendientes cuando el interruptor general lo permite."""
+    if not whatsapp_service.esta_habilitado():
+        return []
+    # Un envío reciente puede pertenecer a otra instancia activa.
+    Pago.query.filter(Pago.whatsapp_estado == 'enviando',
+                      Pago.whatsapp_ultimo_intento < get_bolivia_time() - timedelta(minutes=5)).update({
+        Pago.whatsapp_estado: 'incierto',
+        Pago.whatsapp_error: 'Se interrumpió el envío. Verifica WhatsApp antes de reintentar.',
+    })
+    db.session.commit()
+    return [p.id for p in Pago.query.filter_by(whatsapp_estado='pendiente').order_by(Pago.id).limit(10)]

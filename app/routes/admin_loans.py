@@ -306,7 +306,8 @@ def ver_prestamo(prestamo_id):
 
     prompt_pago_id = session.pop('preguntar_envio_whatsapp_pago_id', None)
     prompt_pago = db.session.get(Pago, prompt_pago_id) if prompt_pago_id else None
-    if not prompt_pago or prompt_pago.prestamo_id != prestamo.id:
+    from app.services.whatsapp_service import esta_habilitado
+    if not esta_habilitado() or not prompt_pago or prompt_pago.prestamo_id != prestamo.id:
         prompt_pago_id = None
 
     return render_template(
@@ -453,7 +454,9 @@ def registrar_pago(prestamo_id):
         prestamo.ultimo_pago = ahora
         prestamo.tipo_ultimo_pago = tipo_pago
         prestamo.monto_ultimo_pago = monto
-        automatico = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
+        from app.services.whatsapp_service import esta_habilitado
+        habilitado = esta_habilitado()
+        automatico = habilitado and Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
         pago = Pago(prestamo_id=prestamo.id, tipo_pago=tipo_pago, monto_pagado=monto,
                     fecha_pago=ahora, meses_pagados=meses, operacion_id=operacion_id,
                     whatsapp_estado='pendiente' if automatico else 'no_solicitado')
@@ -470,8 +473,10 @@ def registrar_pago(prestamo_id):
                                      args=(pago.id, current_app._get_current_object()), daemon=True).start()
                 except RuntimeError:
                     logger.exception('Pago guardado; el recibo queda pendiente de envío')
-        else:
+        elif habilitado:
             session['preguntar_envio_whatsapp_pago_id'] = pago.id
+        else:
+            session.pop('preguntar_envio_whatsapp_pago_id', None)
         if tipo_pago == 'interes':
             flash(f'Pago de interés ({meses} mes/es) registrado exitosamente. Nuevo vencimiento: {prestamo.fecha_finalizacion:%d/%m/%Y}.', 'success')
         else:

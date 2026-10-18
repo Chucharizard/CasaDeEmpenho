@@ -119,3 +119,38 @@ test('el socket recupera el mismo comprobante tras reconectar y tras reiniciar e
     assert.equal(await sockets[2].config.getMessage({ id: 'unknown' }), undefined);
     assert.equal(sent.length, 1);
 });
+
+test('apagar conserva las credenciales y la caché y espera los cambios de sesión', async t => {
+    const f = fixture(t);
+    const credentials = path.join(f.directory, 'creds.json');
+    fs.writeFileSync(credentials, 'sesión ficticia');
+    let socket, saveFinished = false, ended = 0;
+    let finishSave;
+    const save = new Promise(resolve => { finishSave = resolve; });
+    const baileys = {
+        proto, DisconnectReason: { loggedOut: 401 },
+        useMultiFileAuthState: async () => ({ state: {}, saveCreds: async () => { await save; saveFinished = true; } }),
+        fetchLatestBaileysVersion: async () => ({ version: [2, 3000, 1] }),
+        default() {
+            socket = { ev: new EventEmitter(), user: { id: '59170000000:1@s.whatsapp.net' },
+                end() { ended++; this.ev.emit('connection.update', { connection: 'close' }); },
+                async sendMessage() { return outgoing('conservado'); } };
+            return socket;
+        },
+    };
+    const driver = createDriver({ loadBaileys: () => baileys, authDir: f.directory });
+    await driver.connect();
+    socket.ev.emit('connection.update', { connection: 'open' });
+    await driver.send('59170000000@s.whatsapp.net', { text: 'Ficticio' });
+    socket.ev.emit('creds.update');
+    const stopping = driver.stop();
+    assert.equal(saveFinished, false);
+    finishSave();
+    await stopping;
+    assert.equal(saveFinished, true);
+    assert.equal(ended, 1);
+    assert.equal(driver.state.status, 'stopped');
+    assert.equal(fs.readFileSync(credentials, 'utf8'), 'sesión ficticia');
+    assert.equal(createMessageStore(f.config).get({ id: 'conservado' }).conversation, 'Texto ficticio');
+    await assert.rejects(driver.send('59170000000@s.whatsapp.net', { text: 'No enviar' }));
+});

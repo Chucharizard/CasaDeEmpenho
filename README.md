@@ -25,6 +25,7 @@ La base actual del proyecto ya está migrada. En futuras actualizaciones, el arr
 - `.env.example` contiene un ejemplo sin credenciales. Las bases, claves, sesiones de WhatsApp, archivos subidos y comprobantes generados están excluidos de Git.
 - Los respaldos usan la ubicación configurada en `BACKUP_DIR`; si no se especifica, se conserva la ubicación habitual de Respaldo en OneDrive o `RespaldoCasaEmpeno`.
 - La API del bot escucha únicamente en `127.0.0.1:3001` y comparte una clave local con Python. Las claves y la sesión vinculada de WhatsApp no forman parte del repositorio ni del distribuible.
+- En Configuración, «Habilitar WhatsApp» apaga o inicia el bot y oculta sus acciones. Al desactivarlo se cancelan los envíos pendientes y se conserva la sesión. La preferencia de envío automático se mantiene por separado. Ver [WhatsApp opcional y datos](docs/WHATSAPP_OPCIONAL_Y_DATOS.md).
 - `CLIENT_ACCESS_ENABLED` permanece desactivado en la instalación administrativa. Esto no impide gestionar clientes y sus préstamos desde administración.
 
 Para restaurar, seleccionar un respaldo en Configuración y confirmar con la contraseña del administrador. El archivo se verifica y migra en una copia antes de restaurarlo. Se guarda una copia del estado anterior y se cierran las sesiones existentes; después de restaurar se inicia sesión con las credenciales conservadas en ese respaldo.

@@ -39,6 +39,7 @@ TEST_CONFIG = {
     'SECRET_KEY': 'test-secret-key-not-for-production',
     'ADMIN_URL_KEY': 'test-admin-url-key',
     'ADMIN_PREFIX': '/admin',
+    'WHATSAPP_API_TOKEN': 'test-whatsapp-token-not-for-production',
     'WTF_CSRF_ENABLED': False,
     'SERVER_NAME': None,
 }

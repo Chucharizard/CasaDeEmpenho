@@ -118,27 +118,11 @@ def main():
     print('Presiona Ctrl+C para detener el servidor\n')
     print('-' * 50)
 
-    # Iniciar bot de WhatsApp en segundo plano si está disponible
-    try:
-        if not is_port_in_use(3001):
-            bot_dir = os.path.join(base_path, 'whatsapp-bot')
-            server_js = os.path.join(bot_dir, 'server.js')
-            if os.path.exists(server_js):
-                import subprocess
-                import shutil
-                node_exe = os.path.join(bot_dir, 'node.exe')
-                if not os.path.isfile(node_exe):
-                    node_exe = shutil.which('node')
-                if not node_exe:
-                    raise RuntimeError('No se encontró el runtime de Node.js.')
-                bot_env = os.environ.copy()
-                bot_env['WHATSAPP_API_TOKEN'] = app.config['WHATSAPP_API_TOKEN']
-                flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                subprocess.Popen([node_exe, server_js], cwd=bot_dir, env=bot_env,
-                                 creationflags=flags, stdout=sys.stdout, stderr=sys.stderr)
-                print('🤖 Bot de WhatsApp iniciado en segundo plano (puerto 3001)')
-    except Exception as e:
-        print(f'Nota: No se pudo auto-iniciar WhatsApp Bot: {e}')
+    from app.services.whatsapp_runtime import start_bot, stop_bot
+    from app.services.whatsapp_service import esta_habilitado
+    with app.app_context():
+        result = start_bot() if esta_habilitado() else stop_bot()
+        print(result.get('message') or result.get('error'))
 
     from app.services.delivery_service import start_delivery_worker
     start_delivery_worker(app)

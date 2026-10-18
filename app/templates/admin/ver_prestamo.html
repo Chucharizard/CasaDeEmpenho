@@ -63,7 +63,7 @@
             <i class="bi bi-check-circle-fill text-success fs-2 flex-shrink-0"></i>
             <div>
                 <h5 class="mb-1 fw-bold text-success">¡Pago registrado exitosamente!</h5>
-                <p class="mb-0 text-muted">El comprobante oficial ha sido generado. Puedes imprimirlo en papel o enviárselo directamente al cliente por WhatsApp.</p>
+                <p class="mb-0 text-muted">El comprobante oficial ha sido generado. {% if whatsapp_habilitado %}Puedes imprimirlo en papel o enviárselo directamente al cliente por WhatsApp.{% else %}Puedes imprimirlo o descargar su imagen.{% endif %}</p>
             </div>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -73,6 +73,7 @@
             <a href="{{ url_for('admin.recibo_imagen', pago_id=pdf_pago_id) }}" target="_blank" class="btn btn-outline-secondary fw-bold px-3 py-2 shadow-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Ver o descargar imagen PNG del ticket">
                 <i class="bi bi-image"></i> Ver Imagen
             </a>
+            {% if whatsapp_habilitado %}
             {% if pago_reciente and pago_reciente.whatsapp_url %}
             <button type="button" class="btn btn-success fw-bold px-3 py-2 shadow-sm" onclick="copiarReciboYAbrirWhatsApp({{ pdf_pago_id }}, '{{ pago_reciente.whatsapp_url|safe }}', this)" style="display: inline-flex; align-items: center; gap: 0.4rem; background-color: #25d366; border-color: #25d366; color: white;" title="Copia el recibo como imagen y abre el chat de WhatsApp: solo haz Ctrl + V para enviarla">
                 <i class="bi bi-clipboard-check-fill"></i> Copiar Imagen y Abrir WhatsApp
@@ -84,6 +85,7 @@
             <button type="button" class="btn btn-outline-secondary fw-bold px-3 py-2" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Cliente sin teléfono registrado. Clic para agregarlo.">
                 <i class="bi bi-whatsapp"></i> Registrar Teléfono
             </button>
+            {% endif %}
             {% endif %}
             <button type="button" class="btn-close position-static p-2 ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
@@ -111,6 +113,7 @@
             <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#editModal" style="display: inline-flex; align-items: center; gap: 0.4rem;">
                 <i class="bi bi-pencil-square"></i> Editar
             </button>
+            {% if whatsapp_habilitado %}
             {% if prestamo.telefono_whatsapp %}
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#whatsappModal" style="display: inline-flex; align-items: center; gap: 0.4rem; background-color: #25d366; border-color: #25d366; color: white;" title="Enviar recordatorio por WhatsApp">
                 <i class="bi bi-whatsapp"></i> WhatsApp
@@ -119,6 +122,7 @@
             <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="display: inline-flex; align-items: center; gap: 0.4rem;" title="Cliente sin teléfono registrado. Clic para agregarlo.">
                 <i class="bi bi-whatsapp"></i> Sin Teléfono
             </button>
+            {% endif %}
             {% endif %}
         </div>
     </div>
@@ -193,7 +197,7 @@
                     <span class="loan-alert-message">{{ 'La garantía pasó al inventario de venta. Este préstamo ya no genera intereses.' if prestamo.estado == 'decomisado' else alerta.message }}</span>
                 </div>
             </div>
-            {% if alerta.level == 'danger' and prestamo.telefono_whatsapp and prestamo.estado in ['activo', 'retencion'] %}
+            {% if whatsapp_habilitado and alerta.level == 'danger' and prestamo.telefono_whatsapp and prestamo.estado in ['activo', 'retencion'] %}
             <div class="loan-alert-action">
                 <button type="button" class="btn btn-sm btn-whatsapp-compact" data-bs-toggle="modal" data-bs-target="#whatsappModal">
                     <i class="bi bi-whatsapp"></i> Avisar por WhatsApp
@@ -265,7 +269,7 @@
                     <span class="label"><i class="bi bi-telephone"></i> Teléfono</span>
                     <span class="value">
                         {{ prestamo.usuario.telefono if prestamo.usuario.telefono else 'No registrado' }}
-                        {% if prestamo.telefono_whatsapp %}
+                        {% if whatsapp_habilitado and prestamo.telefono_whatsapp %}
                         <button type="button" class="btn btn-sm btn-success ms-2" data-bs-toggle="modal" data-bs-target="#whatsappModal" style="padding: 0.15rem 0.4rem; border-radius: 6px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; background: #25d366; border-color: #25d366; color: #ffffff;">
                             <i class="bi bi-whatsapp"></i> Recordatorio
                         </button>
@@ -342,8 +346,8 @@
                                         <i class="bi {{ 'bi-currency-dollar' if pago.tipo_pago == 'total' else 'bi-cash-coin' }} me-1"></i>
                                         {{ pago.tipo_pago|title }}
                                     </span>
-                                    {% if pago.whatsapp_estado != 'no_solicitado' %}
-                                    <small class="d-block text-muted mt-1" title="{{ pago.whatsapp_error or '' }}">WhatsApp: {{ {'pendiente': 'Pendiente', 'enviando': 'Enviando', 'enviado': 'Enviado', 'error': 'Falló el envío', 'incierto': 'Verificar entrega'}.get(pago.whatsapp_estado, pago.whatsapp_estado) }}</small>
+                                    {% if whatsapp_habilitado and pago.whatsapp_estado != 'no_solicitado' %}
+                                    <small class="d-block text-muted mt-1" title="{{ pago.whatsapp_error or '' }}">WhatsApp: {{ {'pendiente': 'Pendiente', 'enviando': 'Enviando', 'enviado': 'Enviado', 'error': 'Falló el envío', 'incierto': 'Verificar entrega', 'cancelado': 'Cancelado'}.get(pago.whatsapp_estado, pago.whatsapp_estado) }}</small>
                                     {% endif %}
                                 </td>
                                 <td class="px-4 py-3 fw-bold text-success fs-5">
@@ -364,6 +368,7 @@
                                         <a href="{{ url_for('admin.recibo_imagen', pago_id=pago.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;" title="Ver o descargar imagen PNG del ticket">
                                             <i class="bi bi-image"></i>
                                         </a>
+                                        {% if whatsapp_habilitado %}
                                         {% if pago.prestamo.telefono_whatsapp %}
                                         <form action="{{ url_for('admin.whatsapp_reenviar_recibo', pago_id=pago.id) }}" method="POST" class="d-inline">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -378,6 +383,7 @@
                                         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editClienteModal" style="border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;" title="Cliente sin teléfono. Clic para registrarlo.">
                                             <i class="bi bi-whatsapp"></i> Sin Tel.
                                         </button>
+                                        {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -679,6 +685,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+{% if whatsapp_habilitado %}
 <!-- Modal WhatsApp Recordatorio -->
 <div class="modal fade" id="whatsappModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -861,7 +868,9 @@ async function copiarReciboYAbrirWhatsApp(pagoId, whatsappUrl, btnElement) {
 </script>
 
 
-{% if prompt_pago_id %}
+{% endif %}
+
+{% if whatsapp_habilitado and prompt_pago_id %}
 <!-- Modal: Preguntar si desea enviar comprobante por WhatsApp -->
 <div class="modal fade" id="modalConfirmarEnvioWhatsApp" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="modalConfirmarEnvioWhatsAppLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

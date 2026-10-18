@@ -9,7 +9,8 @@ from flask_login import current_user, login_required, logout_user
 from werkzeug.security import check_password_hash
 
 from app import db
-from app.models import Prestamo, ProductoVenta, Usuario, Configuracion, Venta
+from app.models import Prestamo, ProductoVenta, Usuario, Configuracion, Venta, Pago
+from app.services import whatsapp_runtime, whatsapp_service
 from app.services.database_service import create_backup, database_path, restore_backup
 from app.models.articulo import Articulo
 from app.routes.admin_shared import (
@@ -58,6 +59,10 @@ def restaurar_respaldo():
     try:
         backup_actual = restore_backup(backup_path)
         Configuracion.set_valor('session_epoch', secrets.token_urlsafe(24))
+        if whatsapp_service.esta_habilitado():
+            whatsapp_runtime.start_bot()
+        else:
+            whatsapp_runtime.stop_bot()
         logout_user()
         session.clear()
         flash(
@@ -127,6 +132,9 @@ def configuracion():
             else:
                 flash('Tema o estilo no válido.', 'danger')
         elif accion == 'cambiar_whatsapp':
+            if not whatsapp_service.esta_habilitado():
+                flash('Activa WhatsApp para cambiar sus preferencias de envío.', 'info')
+                return redirect(url_for('admin.configuracion', _anchor='whatsapp'))
             auto_envio = 'true' if request.form.get('whatsapp_auto_envio') == 'on' else 'false'
             Configuracion.set_valor('whatsapp_auto_envio', auto_envio)
             if auto_envio == 'true':
@@ -183,3 +191,31 @@ def configuracion():
         tema_actual=tema_actual,
         whatsapp_auto_envio=whatsapp_auto_envio,
     )
+
+
+@admin.route('/whatsapp/habilitar', methods=['POST'])
+@login_required
+@admin_required
+def whatsapp_toggle_enabled():
+    habilitado = request.form.get('whatsapp_habilitado') == 'on'
+    Configuracion.set_valor('whatsapp_habilitado', 'true' if habilitado else 'false', commit=False)
+    if not habilitado:
+        Pago.query.filter_by(whatsapp_estado='pendiente').update({
+            Pago.whatsapp_estado: 'cancelado',
+            Pago.whatsapp_error: 'Cancelado al desactivar WhatsApp.',
+        }, synchronize_session=False)
+        Pago.query.filter_by(whatsapp_estado='enviando').update({
+            Pago.whatsapp_estado: 'incierto',
+            Pago.whatsapp_error: 'WhatsApp se desactivó durante el envío. Verifica la entrega antes de reenviar.',
+        }, synchronize_session=False)
+        session.pop('preguntar_envio_whatsapp_pago_id', None)
+    db.session.commit()
+    result = whatsapp_runtime.start_bot() if habilitado else whatsapp_runtime.stop_bot()
+    if habilitado:
+        from app.services.delivery_service import start_delivery_worker
+        start_delivery_worker(current_app._get_current_object())
+    flash('WhatsApp activado. Puedes revisar su conexión y QR.' if habilitado else
+          'WhatsApp desactivado. Los envíos pendientes se cancelaron y sus acciones están ocultas.', 'success')
+    if not result.get('success'):
+        flash(result.get('error', 'No se pudo completar el cambio del bot.'), 'warning')
+    return redirect(url_for('admin.configuracion', _anchor='whatsapp'))

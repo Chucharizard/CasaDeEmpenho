@@ -545,11 +545,26 @@
             <article class="settings-panel">
                 <div class="settings-panel-header">
                     <div>
-                        <h3 class="settings-panel-title"><i class="bi bi-whatsapp" style="color: #25d366;"></i> WhatsApp y Recibos Digitales</h3>
-                        <p class="settings-panel-subtitle">Define si los comprobantes con imagen se envían solos de forma automática o si el sistema debe pedir confirmación.</p>
+                        <h3 class="settings-panel-title" id="whatsapp"><i class="bi bi-whatsapp" style="color: #25d366;"></i> WhatsApp y recibos digitales</h3>
+                        <p class="settings-panel-subtitle">Activa la integración cuando la necesites. Tus pagos y comprobantes siguen disponibles al desactivarla.</p>
                     </div>
                 </div>
                 <div class="settings-panel-body">
+                    <form method="POST" action="{{ url_for('admin.whatsapp_toggle_enabled') }}" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="p-3 rounded" style="background: var(--bg-corporativo); border: 1px solid var(--borde);">
+                            <div class="form-check form-switch d-flex align-items-center justify-content-between p-0 m-0 gap-3">
+                                <div>
+                                    <label class="form-check-label fw-bold d-block mb-1" for="whatsapp_habilitado">Habilitar WhatsApp</label>
+                                    <p class="small text-muted mb-2">Al desactivarlo se apaga el bot, se cancelan los envíos pendientes y se ocultan las acciones de WhatsApp. La vinculación del teléfono se conserva.</p>
+                                    <span class="badge bg-{{ 'success' if whatsapp_habilitado else 'secondary' }}">{{ 'Habilitado' if whatsapp_habilitado else 'Deshabilitado' }}</span>
+                                </div>
+                                <input class="form-check-input flex-shrink-0 ms-0" type="checkbox" role="switch" id="whatsapp_habilitado" name="whatsapp_habilitado" style="width: 3rem; height: 1.6rem; cursor: pointer;" {% if whatsapp_habilitado %}checked{% endif %} onchange="this.form.submit()">
+                            </div>
+                            <button type="submit" class="settings-btn settings-btn-primary mt-3"><i class="bi bi-power"></i> Guardar estado</button>
+                        </div>
+                    </form>
+                    {% if whatsapp_habilitado %}
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="accion" value="cambiar_whatsapp">
@@ -581,6 +596,9 @@
                             </a>
                         </div>
                     </form>
+                    {% else %}
+                    <p class="small text-muted mb-0">Puedes seguir registrando pagos, imprimiendo y descargando recibos. Al activar WhatsApp se recuperará tu preferencia de envío; los pendientes cancelados no se enviarán solos.</p>
+                    {% endif %}
                 </div>
             </article>
 

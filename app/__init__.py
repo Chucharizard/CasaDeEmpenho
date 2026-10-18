@@ -42,7 +42,7 @@ def create_app(test_config=None):
 
     @app.before_request
     def coordinate_database_access():
-        exclusive = request.endpoint == 'admin.restaurar_respaldo'
+        exclusive = request.endpoint in {'admin.restaurar_respaldo', 'admin.whatsapp_toggle_enabled'}
         gate = app.extensions['database_lock']
         gate.acquire_exclusive() if exclusive else gate.acquire()
         g._database_lock_held = 'exclusive' if exclusive else 'shared'
@@ -51,7 +51,8 @@ def create_app(test_config=None):
                             'admin.prestamo_anterior', 'auth.configurar_admin', 'auth.register',
                             'admin.editar_prestamo', 'admin.editar_usuario', 'admin.editar_producto',
                             'admin.nuevo_producto', 'admin.eliminar_producto', 'admin.poner_en_venta',
-                            'admin.configuracion', 'admin.whatsapp_toggle_auto', 'client.actualizar_perfil'}
+                            'admin.configuracion', 'admin.whatsapp_toggle_auto',
+                            'admin.whatsapp_toggle_enabled', 'client.actualizar_perfil'}
         writes = request.method == 'POST' and request.endpoint in financial_writes
         writes = writes or request.method == 'GET' and request.endpoint in {'admin.dashboard', 'admin.ver_prestamo'}
         if writes and db.engine.dialect.name == 'sqlite':
@@ -79,6 +80,7 @@ def create_app(test_config=None):
 
         @app.context_processor
         def inject_theme():
+            from app.services.whatsapp_service import esta_habilitado
             tema_key = Configuracion.get_valor('tema_sistema', 'default')
             tema = THEMES.get(tema_key, THEMES['default'])
             estilo = Configuracion.get_valor('estilo_sistema', 'flat')
@@ -87,6 +89,7 @@ def create_app(test_config=None):
                 'tema_actual_vars': tema['variables'],
                 'tema_actual_dark': tema.get('is_dark', False),
                 'estilo_actual': estilo if estilo in DESIGN_STYLES else 'flat',
+                'whatsapp_habilitado': esta_habilitado(),
             }
 
         for folder in [app.config['UPLOAD_FOLDER'], app.config['BACKUP_DIR']]:

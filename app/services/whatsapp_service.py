@@ -17,11 +17,27 @@ WHATSAPP_BOT_URL = 'http://127.0.0.1:3001'
 REQUEST_TIMEOUT = 15  # segundos
 
 
+def esta_habilitado():
+    if not has_app_context():
+        return True
+    from app import db
+    from app.models import Configuracion
+    value = db.session.query(Configuracion.valor).filter_by(clave='whatsapp_habilitado').scalar()
+    return value is None or value == 'true'
+
+
+def deshabilitado():
+    return {'success': False, 'status': 'disabled', 'error_code': 'disabled',
+            'error': 'WhatsApp está deshabilitado en Configuración.'}
+
+
 def _hacer_peticion(endpoint, method='GET', data=None):
     """
     Realiza una petición HTTP al bot de WhatsApp local.
     Usa solo urllib para evitar dependencias externas (requests).
     """
+    if endpoint != '/shutdown' and not esta_habilitado():
+        return deshabilitado()
     config = current_app.config if has_app_context() else Config.__dict__
     url = f"{config.get('WHATSAPP_BOT_URL', WHATSAPP_BOT_URL)}{endpoint}"
     headers = {'Content-Type': 'application/json', 'X-API-Key': config['WHATSAPP_API_TOKEN']}
