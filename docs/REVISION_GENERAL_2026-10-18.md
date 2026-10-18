@@ -9,10 +9,13 @@ Se revisaron el estado de Git, modelos, acceso, rutas administrativas, pagos, ve
 - Git excluye también `output/`, las variantes privadas de `.env` y `whatsapp-auth/`, usado al configurar una carpeta de datos. Se añade `.env.example` sin credenciales.
 - README y documentos de revisión enlazan los archivos del repositorio mediante rutas relativas. Los comprobantes de muestra, capturas y ejecutables locales siguen fuera de Git.
 - El lockfile del bot descarga `libsignal` por HTTPS, conservando exactamente su commit. La dirección SSH anterior podía pedir credenciales al instalar en otro equipo o en CI.
+- La primera ejecución de CI detectó una prueba que mezclaba la hora local del servidor UTC con la hora boliviana y esperaba diez días completos cuando había transcurrido una fracción menor. Los modelos ahora se prueban con un reloj fijo; las fechas de reportes y WhatsApp usan la zona de la aplicación. No se cambió el cálculo del sistema para acomodar la prueba.
+- Se actualizaron las acciones oficiales de GitHub a sus versiones vigentes y se fijaron Ubuntu 24.04 y Windows 2025, con permisos de lectura y un límite de diez minutos por trabajo. Cada sistema termina sus pruebas aunque el otro falle.
 
 ## Comprobaciones
 
 - 217 pruebas Python aprobadas en la suite completa y 18 de redirecciones tras el último ajuste: 218 casos distintos comprobados.
+- CI ejecuta los 218 casos Python en Linux y Windows, además de las pruebas del bot en Linux.
 - 13 pruebas Node aprobadas: autenticación de API, validación, escucha local, envío simulado y recuperación de mensajes.
 - Instalación limpia del bot con `npm ci` en una carpeta temporal: 178 paquetes instalados, cero vulnerabilidades y las mismas 13 pruebas aprobadas.
 - `pip check`: sin incompatibilidades. `npm audit`: cero vulnerabilidades reportadas por el registro al ejecutar la revisión.

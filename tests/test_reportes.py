@@ -2,7 +2,7 @@
 Tests del módulo de reportes y estadísticas.
 """
 
-from datetime import datetime
+from app.utils import get_bolivia_time
 
 import pytest
 from dateutil.relativedelta import relativedelta
@@ -56,7 +56,7 @@ class TestReportesPrestamosVencer:
     def test_prestamo_por_vencer_tiene_dias_positivos(self, admin_client, admin_user):
         """Préstamo que vence en 3 días tiene días_para_vencimiento > 0."""
         from app.models.articulo import Articulo
-        ahora = datetime.now()
+        ahora = get_bolivia_time()
         p = Prestamo(
             numero_prestamo=50,
             numero_documento='PREST-VENCE',

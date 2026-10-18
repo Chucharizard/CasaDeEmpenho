@@ -18,6 +18,16 @@ from app.models.usuario import Usuario
 from werkzeug.security import generate_password_hash
 
 
+MODEL_NOW = datetime(2026, 10, 18, 12)
+
+
+@pytest.fixture(autouse=True)
+def stable_model_clock():
+    """Las propiedades usan el mismo reloj que los datos, incluso en servidores UTC."""
+    with patch('app.models.prestamo.get_bolivia_time', return_value=MODEL_NOW):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -37,7 +47,7 @@ def _make_user(suffix='X'):
 
 def _make_prestamo(usuario_id, monto=500.0, interes=10.0,
                    fecha_inicio=None, tipo='prendario', numero=99):
-    inicio = fecha_inicio or datetime.now()
+    inicio = fecha_inicio or MODEL_NOW
     p = Prestamo(
         numero_prestamo=numero,
         numero_documento=f'DOC-{numero}',
@@ -85,7 +95,7 @@ class TestPrestamoMonto:
 
     def test_monto_liquidacion_con_mora_acumula_intereses(self, app):
         u = _make_user('E')
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         # Prestamo de hace 3 meses con vencimiento hace 2 meses
         fecha_ini = ahora - relativedelta(months=3)
         fecha_fin = ahora - relativedelta(months=2)
@@ -114,7 +124,7 @@ class TestPrestamoFechas:
 
     def test_esta_vencido_true_cuando_ya_vencio(self, app):
         u = _make_user('G')
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         p = _make_prestamo(u.id, fecha_inicio=ahora - relativedelta(months=2), numero=11)
         # Ajustar vencimiento al pasado
         p.fecha_finalizacion = ahora - relativedelta(days=1)
@@ -127,7 +137,7 @@ class TestPrestamoFechas:
 
     def test_dias_vencido_positivo_si_vencido(self, app):
         u = _make_user('I')
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         p = _make_prestamo(u.id, fecha_inicio=ahora - relativedelta(months=2), numero=13)
         p.fecha_finalizacion = ahora - relativedelta(days=10)
         assert p.dias_vencido == 10
@@ -140,7 +150,7 @@ class TestPrestamoFechas:
 
     def test_dias_para_vencimiento_negativo_si_vencido(self, app):
         u = _make_user('K')
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         p = _make_prestamo(u.id, numero=15)
         p.fecha_finalizacion = ahora - relativedelta(days=3)
         assert p.dias_para_vencimiento < 0
@@ -148,7 +158,7 @@ class TestPrestamoFechas:
     def test_meses_transcurridos_minimo_uno(self, app):
         """Aun en el mismo día el préstamo vale 1 mes mínimo."""
         u = _make_user('L')
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         p = _make_prestamo(u.id, fecha_inicio=ahora, numero=16)
         # Mockear get_bolivia_time para que devuelva 'ahora'
         with patch('app.models.prestamo.get_bolivia_time', return_value=ahora):
@@ -165,7 +175,7 @@ class TestPrestamoFechas:
     def test_monto_liquidacion_con_pagos_previos(self, app):
         """Si se pagaron meses de interés, se descuentan de los meses adeudados."""
         u = _make_user('N')
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         fecha_ini = ahora - relativedelta(months=4)
         fecha_fin = ahora - relativedelta(months=1)  # vencido hace 1 mes
         p = _make_prestamo(u.id, monto=1000.0, interes=10.0, tipo='prendario',
@@ -290,7 +300,7 @@ class TestPrestamoWhatsApp:
         u = _make_user('WA4')
         u.nombre = 'Juan Perez'
         u.telefono = '77889900'
-        ahora = datetime.now()
+        ahora = MODEL_NOW
         # Vencido hace 2 meses (total 3 meses adeudados)
         p = _make_prestamo(u.id, monto=1000.0, interes=10.0,
                            fecha_inicio=ahora - relativedelta(months=3), numero=204)

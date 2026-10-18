@@ -3,7 +3,7 @@ Pruebas para el módulo de integración con WhatsApp Bot.
 """
 from unittest.mock import patch
 from io import BytesIO
-from datetime import datetime
+from app.utils import get_bolivia_time
 from app import db
 from app.models.prestamo import Pago
 
@@ -55,7 +55,7 @@ def test_whatsapp_reenviar_recibo_bot_no_conectado(admin_client, prestamo_prenda
         prestamo_id=prestamo_prendario.id,
         tipo_pago='interes',
         monto_pagado=50.0,
-        fecha_pago=datetime.now(),
+        fecha_pago=get_bolivia_time(),
     )
     db.session.add(pago)
     db.session.commit()
@@ -75,7 +75,7 @@ def test_whatsapp_reenviar_recibo_exitoso(admin_client, prestamo_prendario):
         prestamo_id=prestamo_prendario.id,
         tipo_pago='interes',
         monto_pagado=50.0,
-        fecha_pago=datetime.now(),
+        fecha_pago=get_bolivia_time(),
     )
     db.session.add(pago)
     db.session.commit()
