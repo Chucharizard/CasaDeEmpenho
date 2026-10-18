@@ -11,7 +11,7 @@ else:
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 load_dotenv(os.path.join(BASEDIR, '.env'))
-DATA_DIR = os.path.abspath(os.getenv('CASAEMPENO_DATA_DIR') or BASEDIR)
+DATA_DIR = os.path.abspath(os.path.join(BASEDIR, os.getenv('CASAEMPENO_DATA_DIR') or '.'))
 
 
 def _load_or_create_secret(filename, env_name, token_bytes=32):
@@ -62,7 +62,7 @@ class Config:
         BACKUP_DIR = os.path.join(ONEDRIVE_DIR, 'Respaldo')
     else:
         BACKUP_DIR = os.path.join(USER_HOME, 'RespaldoCasaEmpeno')
-    BACKUP_DIR = os.getenv('BACKUP_DIR') or BACKUP_DIR
+    BACKUP_DIR = os.path.abspath(os.path.join(BASEDIR, os.getenv('BACKUP_DIR'))) if os.getenv('BACKUP_DIR') else BACKUP_DIR
 
     # Admin y arranque local
     ADMIN_URL_KEY = _load_or_create_secret('.admin_url_key', 'ADMIN_URL_KEY', token_bytes=18)

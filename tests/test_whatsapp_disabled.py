@@ -1,4 +1,5 @@
 """El apagado general bloquea envíos y retira las acciones de la interfaz."""
+from datetime import timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from app import db
 from app.models import Configuracion, Pago
 from app.services import whatsapp_runtime, whatsapp_service
 from app.services.delivery_service import pending_receipt_ids, send_receipt
+from app.utils import get_bolivia_time
 
 
 class VisibleText(HTMLParser):
@@ -81,6 +83,23 @@ def test_pago_sin_integracion_no_encola_ni_pregunta_y_conserva_comprobantes(admi
     assert 'Deshabilitado' in settings
     assert 'id="whatsapp_auto_envio"' not in settings
     assert 'Estado y QR de WhatsApp' not in settings
+
+
+@pytest.mark.parametrize('dias_hasta_vencer', [-1, 3])
+@pytest.mark.parametrize('habilitado', [False, True])
+def test_recordatorios_de_reportes_respetan_interruptor(admin_client, prestamo_prendario, dias_hasta_vencer, habilitado):
+    Configuracion.set_valor('whatsapp_habilitado', 'true' if habilitado else 'false')
+    prestamo_prendario.usuario.telefono = '70000000'
+    prestamo_prendario.fecha_finalizacion = get_bolivia_time() + timedelta(days=dias_hasta_vencer)
+    db.session.commit()
+    with patch('urllib.request.urlopen') as network:
+        response = admin_client.get('/admin/reportes')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert ('https://wa.me/' in html) is habilitado
+    if not habilitado:
+        assert 'whatsapp' not in ' '.join(VisibleText(html).text).lower()
+    network.assert_not_called()
 
 
 def test_apagado_bloquea_transporte_y_worker_sin_cambiar_intentos(prestamo_prendario):
