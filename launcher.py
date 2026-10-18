@@ -35,7 +35,7 @@ def ensure_output_streams():
     if sys.stdout is not None and sys.stderr is not None:
         return
     try:
-        log_path = os.path.join(get_base_path(), 'casa_empeno.log')
+        log_path = os.path.join(Config.DATA_DIR, 'casa_empeno.log')
         log_file = open(log_path, 'a', encoding='utf-8', buffering=1)
     except Exception:
         log_file = open(os.devnull, 'w', encoding='utf-8')
@@ -80,7 +80,8 @@ def main():
     print('=' * 50)
     print(f'\nDirectorio: {base_path}')
 
-    if is_port_in_use(port):
+    smoke_test = '--smoke-test' in sys.argv
+    if not smoke_test and is_port_in_use(port):
         print(f'\nEl puerto {port} ya esta en uso.')
         print(f'Ya hay una instancia corriendo en {browser_url}')
         webbrowser.open(browser_url)
@@ -89,21 +90,28 @@ def main():
 
     from app import create_app, db
 
-    app = create_app()
+    try:
+        app = create_app()
+    except Exception:
+        traceback.print_exc()
+        pause_if_interactive()
+        return 1
 
-    with app.app_context():
-        try:
-            os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
-            print(f'\nDirectorio uploads: {Config.UPLOAD_FOLDER}')
-        except OSError:
-            pass
-        try:
-            os.makedirs(Config.BACKUP_DIR, exist_ok=True)
-            print(f'Directorio respaldos: {Config.BACKUP_DIR}')
-        except OSError:
-            pass
-        db.create_all()
-        print('Base de datos inicializada')
+    if smoke_test:
+        with app.app_context():
+            for template in app.jinja_env.list_templates():
+                app.jinja_env.get_template(template)
+            assert app.test_client().get('/login').status_code == 200
+            from app.services.pdf_service import generar_comprobante_imagen, generar_comprobante_pago
+            from app.utils import get_bolivia_time
+            data = {'numero_recibo': 'REC-TEST', 'numero_documento': 'TEST-1', 'numero_prestamo': 1,
+                    'nombre_cliente': 'Cliente ficticio', 'ci_cliente': 'TEST', 'articulos_descripcion': 'Prueba',
+                    'monto_pagado': 50, 'monto_prestado': 500, 'tipo_pago': 'interes', 'meses_pagados': 1,
+                    'fecha_pago': get_bolivia_time(), 'fecha_vencimiento': get_bolivia_time()}
+            assert generar_comprobante_imagen(data).getvalue().startswith(b'\x89PNG')
+            assert generar_comprobante_pago(data).getvalue().startswith(b'%PDF')
+        print('SMOKE_TEST_OK')
+        return
 
     print(f'\nServidor iniciando en {browser_url}')
     print(f'Host de escucha: {host}')
@@ -117,10 +125,23 @@ def main():
             server_js = os.path.join(bot_dir, 'server.js')
             if os.path.exists(server_js):
                 import subprocess
-                subprocess.Popen(['node', 'server.js'], cwd=bot_dir, shell=True)
+                import shutil
+                node_exe = os.path.join(bot_dir, 'node.exe')
+                if not os.path.isfile(node_exe):
+                    node_exe = shutil.which('node')
+                if not node_exe:
+                    raise RuntimeError('No se encontró el runtime de Node.js.')
+                bot_env = os.environ.copy()
+                bot_env['WHATSAPP_API_TOKEN'] = app.config['WHATSAPP_API_TOKEN']
+                flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                subprocess.Popen([node_exe, server_js], cwd=bot_dir, env=bot_env,
+                                 creationflags=flags, stdout=sys.stdout, stderr=sys.stderr)
                 print('🤖 Bot de WhatsApp iniciado en segundo plano (puerto 3001)')
     except Exception as e:
         print(f'Nota: No se pudo auto-iniciar WhatsApp Bot: {e}')
+
+    from app.services.delivery_service import start_delivery_worker
+    start_delivery_worker(app)
 
     browser_thread = threading.Thread(target=open_browser, args=(port,))
     browser_thread.daemon = True
@@ -135,4 +156,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

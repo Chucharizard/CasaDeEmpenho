@@ -187,7 +187,7 @@ class TestEliminarProducto:
             follow_redirects=True,
         )
         assert resp.status_code == 200
-        assert ProductoVenta.query.get(pid) is None
+        assert ProductoVenta.query.filter_by(id=pid).first() is None
 
     def test_eliminar_producto_inexistente_404(self, admin_client):
         resp = admin_client.post('/admin/eliminar-producto/99999')

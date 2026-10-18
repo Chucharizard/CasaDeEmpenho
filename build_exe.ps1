@@ -1,75 +1,36 @@
-param(
-    [switch]$Windowed = $false
-)
-
-Set-Location "$PSScriptRoot"
-
-# Buscar el entorno virtual local .venv en el directorio padre o en el actual
-$venvPython = Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe"
-$localVenvPython = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
-
-if (Test-Path $venvPython) {
-    $pythonExe = $venvPython
-    $pyinstallerExe = Join-Path $PSScriptRoot "..\.venv\Scripts\pyinstaller.exe"
-    Write-Host "Usando entorno virtual de: $venvPython" -ForegroundColor Cyan
-} elseif (Test-Path $localVenvPython) {
-    $pythonExe = $localVenvPython
-    $pyinstallerExe = Join-Path $PSScriptRoot ".venv\Scripts\pyinstaller.exe"
-    Write-Host "Usando entorno virtual local de: $localVenvPython" -ForegroundColor Cyan
-} else {
-    $pythonExe = "python"
-    $pyinstallerExe = "pyinstaller"
-    Write-Host "Advertencia: No se encontró .venv. Se usará Python/PyInstaller del PATH global." -ForegroundColor Yellow
-}
-
-# Verificar si Python es accesible (solo si se usa el fallback global)
-if ($pythonExe -eq "python") {
+param([switch]$Windowed = $false, [switch]$SkipBot = $false)
+$ErrorActionPreference = 'Stop'
+Set-Location -LiteralPath $PSScriptRoot
+$localPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+$pythonExe = if (Test-Path -LiteralPath $localPython) { $localPython } else { 'python' }
+& $pythonExe -m PyInstaller --version
+if ($LASTEXITCODE -ne 0) { throw 'Instala las dependencias con python -m pip install -r requirements-dev.txt.' }
+# Cada build recibe una carpeta nueva: nunca eliminar una instalación con datos.
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+$releaseDirectory = Join-Path $PSScriptRoot "dist\$stamp"
+$workDirectory = Join-Path $PSScriptRoot "build\$stamp"
+$arguments = @('--noconfirm', '--clean', '--onedir', '--name', 'CasaEmpeno',
+    '--distpath', $releaseDirectory, '--workpath', $workDirectory, '--specpath', $workDirectory,
+    '--add-data', "$PSScriptRoot\app;app", '--add-data', "$PSScriptRoot\migrations;migrations",
+    '--collect-all', 'reportlab', '--collect-all', 'tzdata')
+if ($Windowed) { $arguments += '--windowed' }
+$arguments += (Join-Path $PSScriptRoot 'launcher.py')
+& $pythonExe -m PyInstaller @arguments
+if ($LASTEXITCODE -ne 0) { throw 'La compilación del ejecutable falló.' }
+$applicationDirectory = Join-Path $releaseDirectory 'CasaEmpeno'
+if (-not $SkipBot) {
+    $botDirectory = Join-Path $applicationDirectory 'whatsapp-bot'
+    New-Item -ItemType Directory -Path $botDirectory -Force | Out-Null
+    foreach ($file in @('server.js', 'message_store.js', 'package.json', 'package-lock.json')) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot "whatsapp-bot\$file") -Destination $botDirectory
+    }
+    $nodeExe = (Get-Command node -ErrorAction Stop).Source
+    Copy-Item -LiteralPath $nodeExe -Destination (Join-Path $botDirectory 'node.exe')
+    Push-Location -LiteralPath $botDirectory
     try {
-        & $pythonExe --version | Out-Null
-    } catch {
-        Write-Host "No se encontró Python global en el PATH del sistema." -ForegroundColor Red
-        exit 1
-    }
+        & npm ci --omit=dev
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron preparar las dependencias del bot.' }
+    } finally { Pop-Location }
 }
-
-# Instalar PyInstaller en el venv si no está presente
-if (!(Test-Path $pyinstallerExe) -and ($pyinstallerExe -ne "pyinstaller")) {
-    Write-Host "Instalando PyInstaller en el entorno virtual..." -ForegroundColor Yellow
-    & $pythonExe -m pip install pyinstaller
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "No se pudo instalar PyInstaller" -ForegroundColor Red
-        exit 1
-    }
-}
-
-if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
-
-$buildMode = if ($Windowed) { "modo ventana (sin consola)" } else { "modo consola" }
-Write-Host "Compilando ejecutable en $buildMode..." -ForegroundColor Cyan
-
-$pyinstallerArgs = @(
-    "--noconfirm",
-    "--clean",
-    "--onedir",
-    "--name", "CasaEmpeno",
-    "--add-data", "app;app",
-    "--add-data", "casa_empeno.db;.",
-    "--collect-all", "reportlab",
-    "--collect-all", "tzdata"
-)
-
-if ($Windowed) {
-    $pyinstallerArgs += "--windowed"
-}
-
-$pyinstallerArgs += "launcher.py"
-
-& $pyinstallerExe $pyinstallerArgs
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Build completado exitosamente: .\dist\CasaEmpeno\CasaEmpeno.exe ($buildMode)" -ForegroundColor Green
-} else {
-    Write-Host "Build falló" -ForegroundColor Red
-    exit $LASTEXITCODE
-}
+Write-Host "Build disponible en: $applicationDirectory" -ForegroundColor Green
+Write-Output $applicationDirectory

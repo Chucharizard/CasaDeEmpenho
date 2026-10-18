@@ -124,7 +124,7 @@
                         <option value="por_vencer" {% if estado_filter == 'por_vencer' %}selected{% endif %}>⏳ Por Vencer (7 días)</option>
                         <option value="retencion" {% if estado_filter == 'retencion' %}selected{% endif %}>⚠️ En Retención</option>
                         <option value="finalizado" {% if estado_filter == 'finalizado' %}selected{% endif %}>✔️ Finalizado</option>
-                        <option value="decomisado" {% if estado_filter == 'decomisado' %}selected{% endif %}>❌ Decomisado</option>
+                        <option value="decomisado" {% if estado_filter == 'decomisado' %}selected{% endif %}>🛍️ En venta</option>
                     </select>
                 </div>
                 
@@ -168,22 +168,43 @@
         {% endif %}
 
         <!-- Tabla de préstamos mejorada -->
-        <div class="table-container" id="tableContainer">
-            <div class="table-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5><i class="bi bi-table"></i> Préstamos Recientes</h5>
-                    <form method="GET" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center">
-                        <!-- Mantener los filtros actuales en el formulario -->
-                        <input type="hidden" name="search_cliente" value="{{ search_ci or search_nombre }}">
-                        <input type="hidden" name="estado" value="{{ estado_filter }}">
-                        
-                        <select name="order" class="form-select form-select-sm w-auto-sm" onchange="this.form.submit()">
-                            <option value="fecha_desc" {% if order == 'fecha_desc' %}selected{% endif %}>Más recientes</option>
-                            <option value="fecha_asc" {% if order == 'fecha_asc' %}selected{% endif %}>Más antiguos</option>
-                            <option value="monto_desc" {% if order == 'monto_desc' %}selected{% endif %}>Mayor monto</option>
-                            <option value="monto_asc" {% if order == 'monto_asc' %}selected{% endif %}>Menor monto</option>
-                        </select>
-                    </form>
+        <div class="table-container loan-list" id="loanList" role="region" aria-labelledby="loanListTitle">
+            <div class="table-header loan-list-header">
+                <div class="loan-list-heading">
+                    <span class="loan-list-mark" aria-hidden="true"><i class="bi bi-journal-text"></i></span>
+                    <div>
+                        <h5 id="loanListTitle">Listado de préstamos</h5>
+                        <p>{{ pagination.total }} préstamo{{ 's' if pagination.total != 1 else '' }}{% if prestamos %}<span aria-hidden="true"> · </span>{{ pagination.first }}–{{ pagination.last }} en esta página{% endif %}</p>
+                    </div>
+                </div>
+                {% set order_options = {
+                    'fecha_desc': {'title': 'Más recientes', 'description': 'Del más nuevo al más antiguo', 'icon': 'bi-sort-down'},
+                    'fecha_asc': {'title': 'Más antiguos', 'description': 'Del más antiguo al más nuevo', 'icon': 'bi-sort-up'},
+                    'monto_desc': {'title': 'Mayor monto', 'description': 'Capital prestado, de mayor a menor', 'icon': 'bi-sort-numeric-down-alt'},
+                    'monto_asc': {'title': 'Menor monto', 'description': 'Capital prestado, de menor a mayor', 'icon': 'bi-sort-numeric-down'}
+                } %}
+                {% set selected_order = order_options.get(order, order_options['fecha_desc']) %}
+                <div class="loan-order-tools">
+                    <span id="loanOrderLabel" class="loan-order-label">Ordenar por</span>
+                    <div class="dropdown loan-order-picker">
+                        <input type="hidden" name="order" id="loanOrder" value="{{ order }}">
+                        <button class="loan-order-toggle" type="button" id="loanOrderToggle" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="menu" aria-controls="loanOrderMenu" aria-labelledby="loanOrderLabel loanOrderValue">
+                            <i class="bi {{ selected_order.icon }}" aria-hidden="true"></i>
+                            <span id="loanOrderValue">{{ selected_order.title }}</span>
+                            <i class="bi bi-chevron-down loan-order-chevron" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end loan-order-menu" id="loanOrderMenu" role="menu" aria-labelledby="loanOrderLabel">
+                            {% for value, option in order_options.items() %}
+                            <li role="none">
+                                <button type="button" class="dropdown-item loan-order-option {{ 'is-selected' if order == value else '' }}" role="menuitemradio" aria-checked="{{ 'true' if order == value else 'false' }}" data-loan-order="{{ value }}">
+                                    <i class="bi {{ option.icon }} loan-order-icon" aria-hidden="true"></i>
+                                    <span><strong>{{ option.title }}</strong><small>{{ option.description }}</small></span>
+                                    <i class="bi bi-check2 loan-order-check" aria-hidden="true"></i>
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="table-wrapper">
@@ -220,7 +241,7 @@
 
                                             <td>
                                                 <span class="badge {% if prestamo.estado == 'activo' %}bg-success{% elif prestamo.estado == 'retencion' %}bg-danger{% else %}bg-warning{% endif %}">
-                                                    {{ prestamo.estado }}
+                                                    {{ {'activo': 'Activo', 'retencion': 'En retención', 'finalizado': 'Finalizado', 'decomisado': 'En venta'}.get(prestamo.estado, prestamo.estado) }}
                                                 </span>
                                             </td>
                                             <td>{{ prestamo.articulos[0].nombre if prestamo.articulos else 'Sin artículos' }}</td>
@@ -231,6 +252,15 @@
                         </div>
                     {% else %}
                         <p class="text-muted text-center py-4 my-0">No hay préstamos registrados</p>
+                    {% endif %}
+                    <script type="application/json" id="dashboard-chart-data">{{ chart_counts|tojson }}</script>
+                    {% if pagination.pages > 1 %}
+                    <nav aria-label="Páginas de préstamos" class="d-flex align-items-center gap-2 flex-wrap mt-3">
+                        <span class="text-muted small">{{ pagination.total }} préstamos · Página {{ pagination.page }} de {{ pagination.pages }}</span>
+                        {% for page in pagination.iter_pages() %}
+                            {% if page %}<a class="btn btn-sm {{ 'btn-primary' if page == pagination.page else 'btn-outline-primary' }}" href="{{ page_url(page) }}">{{ page }}</a>{% else %}<span>…</span>{% endif %}
+                        {% endfor %}
+                    </nav>
                     {% endif %}
             </div>
         </div>
@@ -259,121 +289,76 @@
 <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
     const ctx = document.getElementById('prestamosChart').getContext('2d');
-    new Chart(ctx, {
+    const chartTheme = getComputedStyle(document.documentElement);
+    const graphiteChart = document.documentElement.dataset.theme === 'graphite';
+    const prestamosChart = new Chart(ctx, {
         type: 'pie',
         data: {
-            labels: ['Activos', 'En Retención', 'Finalizados', 'Decomisados'],
+            labels: ['Activos', 'En Retención', 'Finalizados', 'En venta'],
             datasets: [{
-                data: [
-                    {{ prestamos|selectattr('estado', 'equalto', 'activo')|list|length }},
-                    {{ prestamos|selectattr('estado', 'equalto', 'retencion')|list|length }},
-                    {{ prestamos|selectattr('estado', 'equalto', 'finalizado')|list|length }},
-                    {{ prestamos|selectattr('estado', 'equalto', 'decomisado')|list|length }}
-                ],
-                backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#dc3545'],
+                data: {{ chart_counts|tojson }},
+                backgroundColor: graphiteChart
+                    ? ['--ui-success', '--ui-warning', '--ui-info', '--ui-danger'].map(key => chartTheme.getPropertyValue(key).trim())
+                    : ['#0d6efd', '#ffc107', '#198754', '#dc3545'],
             }]
         },
+        options: {plugins: {legend: {labels: {color: chartTheme.getPropertyValue('--color-texto-principal').trim()}}}},
     });
 
+    let dashboardController;
+    async function updateDashboard(url, focusOrder = false) {
+        if (dashboardController) dashboardController.abort();
+        const controller = new AbortController();
+        dashboardController = controller;
+        document.getElementById('tableContainer').setAttribute('aria-busy', 'true');
+        try {
+            const response = await fetch(url, {signal: controller.signal});
+            if (response.redirected) { window.location.assign(response.url); return; }
+            if (!response.ok) throw new Error('No se pudo actualizar la lista.');
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const table = doc.getElementById('tableContainer');
+            if (!table || controller.signal.aborted) return;
+            bootstrap.Dropdown.getInstance(document.getElementById('loanOrderToggle'))?.dispose();
+            document.getElementById('tableContainer').innerHTML = table.innerHTML;
+            document.querySelector('.stats-grid').innerHTML = doc.querySelector('.stats-grid').innerHTML;
+            const chartData = doc.getElementById('dashboard-chart-data');
+            if (chartData) { prestamosChart.data.datasets[0].data = JSON.parse(chartData.textContent); prestamosChart.update(); }
+            window.history.replaceState({}, '', url);
+            if (focusOrder) document.getElementById('loanOrderToggle').focus({preventScroll: true});
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                if (window.showToast) window.showToast(error.message, 'danger');
+                if (focusOrder) document.getElementById('loanOrderToggle').focus({preventScroll: true});
+            }
+        } finally {
+            if (dashboardController === controller) document.getElementById('tableContainer').removeAttribute('aria-busy');
+        }
+    }
+    function dashboardUrl() {
+        const params = new URLSearchParams(new FormData(document.getElementById('searchForm')));
+        params.set('order', document.getElementById('loanOrder').value);
+        return window.location.pathname + '?' + params;
+    }
     document.addEventListener('DOMContentLoaded', function() {
-        const searchForm = document.getElementById('searchForm');
-        const clearFilters = document.getElementById('clearFilters');
-        const tableContainer = document.getElementById('tableContainer');
-        const searchCliente = document.getElementById('search_cliente');
-        const btnClear = document.querySelector('.btn-clear-dashboard');
-        let currentPosition = 0;
-        let searchTimeout = null;
-
-        // Mostrar/ocultar botón de limpiar búsqueda
-        if (searchCliente) {
-            searchCliente.addEventListener('input', function() {
-                if (this.value.length > 0) {
-                    btnClear.classList.add('show');
-                } else {
-                    btnClear.classList.remove('show');
-                }
-            });
-
-            // Mostrar botón si hay valor inicial
-            if (searchCliente.value.length > 0) {
-                btnClear.classList.add('show');
-            }
-        }
-
-        // Función para actualizar la tabla
-        function updateTable(url) {
-            // Guardar la posición actual del scroll
-            currentPosition = window.scrollY;
-
-            fetch(url)
-                .then(response => response.text())
-                .then(html => {
-                    // Crear un DOM temporal
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    
-                    // Actualizar solo la tabla y las tarjetas de estadísticas
-                    const newTable = doc.getElementById('tableContainer');
-                    const newStats = doc.querySelector('.stats-grid');
-                    
-                    if (newTable) tableContainer.innerHTML = newTable.innerHTML;
-                    if (newStats) {
-                        document.querySelector('.stats-grid').innerHTML = newStats.innerHTML;
-                    }
-
-                    // Restaurar la posición del scroll
-                    window.scrollTo(0, currentPosition);
-
-                    // Actualizar la URL sin recargar la página
-                    window.history.pushState({}, '', url);
-                });
-        }
-
-        // Función para preparar FormData y convertir search_cliente
-        function prepareFormData(formData) {
-            // Convertir search_cliente en search_ci o search_nombre según el contenido
-            const searchValue = formData.get('search_cliente');
-            if (searchValue) {
-                // Si es numérico, buscar por CI, si no por nombre
-                if (/^\d+$/.test(searchValue.trim())) {
-                    formData.set('search_ci', searchValue);
-                    formData.delete('search_nombre');
-                } else {
-                    formData.set('search_nombre', searchValue);
-                    formData.delete('search_ci');
-                }
-            }
-            formData.delete('search_cliente');
-            return formData;
-        }
-
-        // Manejar el envío del formulario
-        searchForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            let formData = new FormData(searchForm);
-            formData = prepareFormData(formData);
-            
-            const queryString = new URLSearchParams(formData).toString();
-            const url = `${window.location.pathname}?${queryString}`;
-            updateTable(url);
+        const form = document.getElementById('searchForm');
+        form.addEventListener('submit', event => { event.preventDefault(); updateDashboard(dashboardUrl()); });
+        document.getElementById('clearFilters').addEventListener('click', () => {
+            form.reset(); document.getElementById('search_cliente').value = '';
+            document.getElementById('estado').value = 'todos';
+            document.getElementById('loanOrder').value = 'fecha_desc';
+            updateDashboard(dashboardUrl());
         });
-
-        // Manejar el botón de limpiar
-        clearFilters.addEventListener('click', function() {
-            searchForm.reset();
-            btnClear.classList.remove('show');
-            updateTable(window.location.pathname);
-        });
-
-        // Manejar el cambio en el select de ordenamiento
-        document.querySelector('select[name="order"]').addEventListener('change', function() {
-            let formData = new FormData(searchForm);
-            formData = prepareFormData(formData);
-            
-            formData.append('order', this.value);
-            const queryString = new URLSearchParams(formData).toString();
-            const url = `${window.location.pathname}?${queryString}`;
-            updateTable(url);
+        document.addEventListener('click', event => {
+            const option = event.target.closest('[data-loan-order]');
+            if (!option) return;
+            if (option.dataset.loanOrder === document.getElementById('loanOrder').value) {
+                document.getElementById('loanOrderToggle').focus({preventScroll: true});
+                return;
+            }
+            const url = new URL(dashboardUrl(), window.location.origin);
+            url.searchParams.set('order', option.dataset.loanOrder);
+            updateDashboard(url.pathname + url.search, true);
         });
     });
 
@@ -392,73 +377,15 @@
         }
     });
 
-    // Función de búsqueda en tiempo real con debounce
     function busquedaEnTiempoReal() {
-        // Limpiar timeout anterior
-        if (window.searchTimeout) {
-            clearTimeout(window.searchTimeout);
-        }
-
-        // Establecer nuevo timeout (espera 500ms después de que el usuario deje de escribir)
-        window.searchTimeout = setTimeout(function() {
-            const searchForm = document.getElementById('searchForm');
-            const formData = new FormData(searchForm);
-            const searchValue = formData.get('search_cliente');
-            
-            // Convertir search_cliente en search_ci o search_nombre
-            if (searchValue) {
-                if (/^\d+$/.test(searchValue.trim())) {
-                    formData.set('search_ci', searchValue);
-                    formData.delete('search_nombre');
-                } else {
-                    formData.set('search_nombre', searchValue);
-                    formData.delete('search_ci');
-                }
-            } else {
-                // Si está vacío, limpiar ambos
-                formData.delete('search_ci');
-                formData.delete('search_nombre');
-            }
-            formData.delete('search_cliente');
-            
-            const queryString = new URLSearchParams(formData).toString();
-            const url = `${window.location.pathname}?${queryString}`;
-            
-            // Actualizar tabla
-            const currentPosition = window.scrollY;
-            const tableContainer = document.getElementById('tableContainer');
-            
-            fetch(url)
-                .then(response => response.text())
-                .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    
-                    const newTable = doc.getElementById('tableContainer');
-                    const newStats = doc.querySelector('.stats-grid');
-                    
-                    if (newTable) tableContainer.innerHTML = newTable.innerHTML;
-                    if (newStats) {
-                        document.querySelector('.stats-grid').innerHTML = newStats.innerHTML;
-                    }
-                    
-                    window.scrollTo(0, currentPosition);
-                    window.history.pushState({}, '', url);
-                });
-        }, 500); // Espera 500ms después de que el usuario deje de escribir
+        clearTimeout(window.searchTimeout);
+        // Cancelar también respuestas pendientes antes de que venza el debounce.
+        if (dashboardController) dashboardController.abort();
+        window.searchTimeout = setTimeout(() => updateDashboard(dashboardUrl()), 400);
     }
-
-    // Función para limpiar búsqueda de cliente
     function limpiarBusquedaCliente() {
-        const searchCliente = document.getElementById('search_cliente');
-        const btnClear = document.querySelector('.btn-clear-dashboard');
-        if (searchCliente) {
-            searchCliente.value = '';
-            searchCliente.focus();
-            btnClear.classList.remove('show');
-            // Activar búsqueda en tiempo real para actualizar la tabla
-            busquedaEnTiempoReal();
-        }
+        const input = document.getElementById('search_cliente');
+        input.value = ''; input.focus(); busquedaEnTiempoReal();
     }
 
     // Auto-descargar PDF pendiente cuando se llega al dashboard.

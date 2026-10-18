@@ -1,0 +1,85 @@
+<section class="appearance-studio" id="apariencia" aria-labelledby="appearance-heading">
+    <div class="appearance-heading">
+        <div>
+            <span class="design-eyebrow"><i class="bi bi-palette2" aria-hidden="true"></i> DALE TU TOQUE</span>
+            <h2 id="appearance-heading">Un espacio con personalidad.</h2>
+            <p>Prueba colores, formas y notificaciones. Tú eliges cómo trabajar.</p>
+        </div>
+        <span class="design-sticker"><i class="bi bi-stars" aria-hidden="true"></i> Hecho a tu estilo</span>
+    </div>
+    <form method="POST" id="theme-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="accion" value="cambiar_tema">
+        <div class="appearance-workbench">
+            <div class="appearance-controls">
+                <fieldset class="appearance-fieldset">
+                    <legend><span class="step-number">01</span> Elige las formas</legend>
+                    <div class="design-options">
+                        {% for key, style in design_styles.items() %}
+                        <label class="design-option">
+                            <input type="radio" name="estilo" value="{{ key }}" {% if estilo_actual == key %}checked{% endif %}>
+                            <span class="design-option-body">
+                                <span class="design-shape design-shape-{{ key }}" aria-hidden="true"><i class="bi {{ style.icon }}"></i></span>
+                                <span><strong>{{ style.name }}</strong><small>{{ style.description }}</small></span>
+                                <i class="bi bi-check2 design-selected" aria-hidden="true"></i>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <fieldset class="appearance-fieldset">
+                    <legend><span class="step-number">02</span> Ponle color</legend>
+                    <div class="palette-grid" role="radiogroup" aria-label="Paleta de colores">
+                        {% for key, theme in themes.items() %}
+                        <label class="palette-option">
+                            <input type="radio" name="tema" value="{{ key }}" {% if tema_actual == key %}checked{% endif %}>
+                            <span class="palette-option-body">
+                                <span class="palette-colors" aria-hidden="true">
+                                    <i style="background: {{ theme.variables['--primario'] }}"></i>
+                                    <i style="background: {{ theme.variables['--bg-corporativo'] }}"></i>
+                                    <i style="background: {{ theme.variables['--secundario'] }}"></i>
+                                </span>
+                                <span>{{ theme.name }}</span>
+                                <i class="bi bi-check-circle-fill palette-selected" aria-hidden="true"></i>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+            </div>
+            <div class="appearance-preview">
+                <div class="preview-topline"><span class="preview-live-dot"></span> VISTA PREVIA <span>Datos de ejemplo</span></div>
+                <div class="preview-window">
+                    <div class="preview-window-bar"><span></span><span></span><span></span><small>Tu día, bajo control</small></div>
+                    <div class="preview-window-content">
+                        <div class="preview-intro"><span>ASÍ SE VERÁ TU ESPACIO</span><i class="bi bi-sun" aria-hidden="true"></i></div>
+                        <h3>Todo en orden<span class="preview-punctuation">.</span></h3>
+                        <p>Lo importante, siempre a la vista.</p>
+                        <div class="preview-metrics">
+                            <div class="preview-metric"><i class="bi bi-wallet2" aria-hidden="true"></i><span>Capital prestado</span><strong>Bs. 1.000<span>,00</span></strong></div>
+                            <div class="preview-metric preview-metric-accent"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>Estado del préstamo</span><strong>Al día <i class="bi bi-arrow-up-right" aria-hidden="true"></i></strong></div>
+                        </div>
+                        <div class="preview-example-alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>Una fecha importante</strong><span>Ejemplo: un préstamo vence en 3 días.</span></div></div>
+                        <div class="preview-action-row"><button type="button" class="btn btn-primary" data-demo-toast="success"><i class="bi bi-check2"></i> Probar confirmación</button><span class="preview-status"><i class="bi bi-circle-fill"></i> Todo listo</span></div>
+                    </div>
+                </div>
+                <div class="notification-playground">
+                    <h4><i class="bi bi-bell" aria-hidden="true"></i> Así se sienten las notificaciones</h4>
+                    <p>Los ejemplos no registran operaciones.</p>
+                    <div class="notification-demo-buttons">
+                        <button type="button" data-demo-toast="success"><i class="bi bi-check-circle"></i> Éxito</button>
+                        <button type="button" data-demo-toast="info"><i class="bi bi-info-circle"></i> Información</button>
+                        <button type="button" data-demo-toast="warning"><i class="bi bi-exclamation-triangle"></i> Aviso</button>
+                        <button type="button" data-demo-toast="danger"><i class="bi bi-x-octagon"></i> Error</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="appearance-savebar">
+            <div><i class="bi bi-eye" aria-hidden="true"></i><span id="appearance-status" role="status">Estás viendo el diseño guardado.</span></div>
+            <div class="appearance-save-actions"><button type="button" class="btn btn-outline-secondary" id="appearance-reset">Deshacer vista previa</button><button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Guardar diseño</button></div>
+        </div>
+    </form>
+</section>
+<script id="appearance-data" type="application/json">{{ themes|tojson }}</script>
+<script src="{{ url_for('static', filename='js/appearance.js', v='20261017') }}" defer></script>

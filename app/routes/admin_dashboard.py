@@ -1,10 +1,10 @@
-from app.utils import get_bolivia_time
+from app.utils import get_bolivia_time, normalize_ci
 
 from dateutil.relativedelta import relativedelta
-from flask import jsonify, render_template, request, session
+from flask import jsonify, render_template, request, session, url_for
 from flask_login import login_required
 from sqlalchemy import func, or_
-from sqlalchemy.orm import contains_eager, selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app import db
 from app.models import Articulo, Prestamo, Usuario
@@ -25,21 +25,21 @@ def dashboard():
         search_ci = search_cliente
         search_nombre = search_cliente
 
-    query = Prestamo.query.join(Usuario).outerjoin(Articulo).options(contains_eager(Prestamo.usuario), contains_eager(Prestamo.articulos))
+    query = Prestamo.query.join(Usuario).options(joinedload(Prestamo.usuario), selectinload(Prestamo.articulos), selectinload(Prestamo.pagos))
 
     if search_ci:
         query = query.filter(
             or_(
                 Usuario.ci.ilike(f'%{search_ci}%'),
                 Usuario.nombre.ilike(f'%{search_ci}%'),
-                Articulo.nombre.ilike(f'%{search_ci}%'),
+                Prestamo.articulos.any(Articulo.nombre.ilike(f'%{search_ci}%')),
             )
         )
     if search_nombre and search_nombre != search_ci:
         query = query.filter(
             or_(
                 Usuario.nombre.ilike(f'%{search_nombre}%'),
-                Articulo.nombre.ilike(f'%{search_nombre}%'),
+                Prestamo.articulos.any(Articulo.nombre.ilike(f'%{search_nombre}%')),
             )
         )
 
@@ -79,13 +79,17 @@ def dashboard():
     if actualizados_count > 0:
         db.session.commit()
 
-    prestamos = query.all()
-    
-    # Contar préstamos por vencer en memoria
-    prestamos_por_vencer_count = sum(
-        1 for p in prestamos
-        if p.estado == 'activo' and hoy <= p.fecha_finalizacion <= limite_vencimiento
-    )
+    chart_counts = dict(query.order_by(None).with_entities(Prestamo.estado, func.count(Prestamo.id)).group_by(Prestamo.estado).all())
+    prestamos_por_vencer_count = query.order_by(None).filter(
+        Prestamo.estado == 'activo', Prestamo.fecha_finalizacion >= hoy,
+        Prestamo.fecha_finalizacion <= limite_vencimiento).count()
+    pagination = query.order_by(Prestamo.id.desc()).paginate(
+        page=max(1, request.args.get('page', 1, type=int)), per_page=50, error_out=False)
+    prestamos = pagination.items
+    def page_url(page):
+        args = request.args.to_dict()
+        args['page'] = page
+        return url_for('admin.dashboard', **args)
 
     totales = {'activo': {'cantidad': 0, 'total': 0.0}, 'retencion': {'cantidad': 0, 'total': 0.0}}
     totales_query = (
@@ -107,6 +111,9 @@ def dashboard():
     return render_template(
         'admin/dashboard.html',
         prestamos=prestamos,
+        pagination=pagination,
+        page_url=page_url,
+        chart_counts=[chart_counts.get(estado, 0) for estado in ('activo', 'retencion', 'finalizado', 'decomisado')],
         hoy=hoy,
         total_activos=totales['activo']['total'],
         total_retencion=totales['retencion']['total'],
@@ -147,7 +154,7 @@ def clientes():
 @login_required
 @admin_required
 def buscar_usuario_por_ci(ci):
-    usuario = Usuario.query.filter_by(ci=ci).first()
+    usuario = Usuario.por_ci(ci)
     if usuario:
         total_prestamos = len(usuario.prestamos)
         prestamos_activos = sum(1 for prestamo in usuario.prestamos if prestamo.estado == 'activo')

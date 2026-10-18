@@ -1,12 +1,12 @@
 import time
 from threading import Lock
 
-from flask import Blueprint, current_app, render_template, request, flash, redirect, url_for
+from flask import Blueprint, abort, current_app, render_template, request, session, flash, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user, login_required
-from app.models import Usuario
+from app.models import Usuario, Configuracion
 from app import db
-from app.utils import format_bolivian_phone
+from app.utils import format_bolivian_phone, normalize_ci
 
 auth = Blueprint('auth', __name__)
 
@@ -61,10 +61,10 @@ def login():
             flash('Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.', 'warning')
             return render_template('auth/login.html')
 
-        ci = (request.form.get('ci') or '').strip()
+        ci = normalize_ci(request.form.get('ci'))
         password = request.form.get('password') or ''
 
-        user = Usuario.query.filter_by(ci=ci).first()
+        user = Usuario.por_ci(ci)
 
         # Cuenta no activada: unico mensaje especifico que conservamos por UX de
         # onboarding. No revela la contrasena ni permite distinguir un fallo de login.
@@ -78,24 +78,30 @@ def login():
         password_ok = check_password_hash(stored_hash, password)
 
         if user and password_ok:
+            if not user.es_admin and not current_app.config['CLIENT_ACCESS_ENABLED']:
+                flash('El acceso al sistema está reservado a administradores.', 'warning')
+                return render_template('auth/login.html')
             _clear_failures(key)
             login_user(user)
-            return redirect(url_for('admin.dashboard'))
+            session['auth_epoch'] = Configuracion.get_valor('session_epoch', 'initial')
+            return redirect(url_for('admin.dashboard' if user.es_admin else 'client.panel'))
 
         _register_failure(key)
         flash('CI o contraseña incorrectos', 'danger')
 
-    return render_template('auth/login.html')
+    return render_template('auth/login.html', permitir_setup=not Usuario.query.filter_by(es_admin=True).first())
 
 
 @auth.route('/register', methods=['GET', 'POST'])
 def register():
+    if not current_app.config['CLIENT_ACCESS_ENABLED']:
+        abort(404)
     if request.method == 'POST':
-        ci = (request.form.get('ci') or '').strip()
+        ci = normalize_ci(request.form.get('ci'))
         password = request.form.get('password') or ''
         telefono = format_bolivian_phone(request.form.get('telefono'))
 
-        usuario = Usuario.query.filter_by(ci=ci).first()
+        usuario = Usuario.por_ci(ci)
 
         # No se permite activar cuentas administrativas por la via publica:
         # cierra la toma de control de admin conociendo solo el CI.
@@ -119,6 +125,26 @@ def register():
     return render_template('auth/register.html')
 
 
+@auth.route('/configurar-admin', methods=['GET', 'POST'])
+def configurar_admin():
+    if request.remote_addr not in ('127.0.0.1', '::1') or Usuario.query.filter_by(es_admin=True).first():
+        abort(404)
+    if request.method == 'POST':
+        ci = normalize_ci(request.form.get('ci'))
+        nombre = (request.form.get('nombre') or '').strip()
+        password = request.form.get('password') or ''
+        if not ci or len(ci) > 20 or not nombre or len(nombre) > 100 or len(password) < 8:
+            flash('Ingresa un usuario, nombre y una contraseña de al menos 8 caracteres.', 'warning')
+        elif Usuario.por_ci(ci):
+            flash('Ese usuario ya existe. Utiliza otro identificador.', 'warning')
+        else:
+            db.session.add(Usuario(ci=ci, nombre=nombre, password=generate_password_hash(password), es_admin=True, cuenta_activa=True))
+            db.session.commit()
+            flash('Administrador creado. Ya puedes iniciar sesión.', 'success')
+            return redirect(url_for('auth.login'))
+    return render_template('auth/setup.html')
+
+
 @auth.route('/logout')
 @login_required
 def logout():
@@ -135,5 +161,6 @@ def dev_login():
     admin_user = Usuario.query.filter_by(es_admin=True).first()
     if admin_user:
         login_user(admin_user)
+        session['auth_epoch'] = Configuracion.get_valor('session_epoch', 'initial')
         return redirect(url_for('admin.dashboard'))
     return redirect(url_for('auth.login'))

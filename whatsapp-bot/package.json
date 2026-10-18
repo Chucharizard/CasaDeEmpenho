@@ -4,7 +4,8 @@
   "description": "Bot local de WhatsApp para envío automático de recibos - Casa de Empeño",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.16",

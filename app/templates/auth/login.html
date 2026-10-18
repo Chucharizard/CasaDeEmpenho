@@ -13,10 +13,12 @@
                 <div class="card-body">
                     <!-- Logo o Imagen -->
                     <div class="text-center mb-4">
-                        <img src="{{ url_for('static', filename='public/img1.webp') }}" 
-                             alt="Logo Casa de Empeño" 
-                             class="img-fluid rounded-circle" 
-                             style="width: 100px; height: 100px; object-fit: cover;">
+                        <img src="{{ url_for('static', filename='brand/panda-logo.png') }}"
+                             alt="Panda · Casa de Empeño"
+                             class="img-fluid rounded"
+                             style="width: 150px; height: 100px; object-fit: contain; background: #000;">
+                        <h2 class="mt-3 mb-0">Panda</h2>
+                        <p class="text-muted small">Casa de Empeño</p>
                     </div>
 
                     <!-- Mensajes Flash -->
@@ -31,6 +33,7 @@
                         {% endif %}
                     {% endwith %}
                     
+                    {% if permitir_setup %}<p><a href="{{ url_for('auth.configurar_admin') }}">Configurar el primer administrador</a></p>{% endif %}
                     <!-- Formulario -->
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

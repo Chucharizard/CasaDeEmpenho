@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="{{ tema_actual_key }}" data-dark="{{ '1' if tema_actual_dark else '0' }}">
+<html lang="es" data-theme="{{ tema_actual_key }}" data-dark="{{ '1' if tema_actual_dark else '0' }}" data-design="{{ estilo_actual }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Casa de Empeño</title>
+    <title>Panda · Casa de Empeño</title>
     <!-- Fuentes y librerias servidas localmente (funcionan sin conexion) -->
     <link href="{{ url_for('static', filename='vendor/poppins/poppins.css') }}" rel="stylesheet">
     <!-- Bootstrap CSS -->
@@ -27,6 +27,7 @@
     {% block styles %}
     
     {% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20261017-panda') }}">
 </head>
 <body class="preload">
     <!-- Script para evitar transiciones al cargar (FOUC) -->
@@ -39,15 +40,15 @@
     </script>
 
     <!-- Toggle button para móvil -->
-    <button class="sidebar-toggle" onclick="toggleSidebar()">
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Abrir menú de navegación" aria-controls="sidebar" aria-expanded="false">
         <i class="bi bi-list"></i>
     </button>
     
     <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
+    <div class="sidebar" id="sidebar" role="navigation" aria-label="Menú principal">
         <!-- Script síncrono para colapsar inmediatamente si es necesario -->
         <script>
-            if (localStorage.getItem('sidebarCollapsed') === 'true' && !window.matchMedia('(max-width: 768px)').matches) {
+            if (localStorage.getItem('sidebarCollapsed') === 'true' && !window.matchMedia('(max-width: 991px)').matches) {
                 document.getElementById('sidebar').classList.add('collapsed');
             }
         </script>
@@ -55,12 +56,12 @@
         
         <!-- Header del Sidebar -->
         <div class="sidebar-header">
-            <a href="{{ url_for('public.index') }}" class="sidebar-brand">
-                <i class="bi bi-gem"></i>
-                <span>Casa de Empeño</span>
+            <a href="{{ url_for('public.index') }}" class="sidebar-brand" aria-label="Panda · Casa de Empeño" title="Panda · Casa de Empeño">
+                <img src="{{ url_for('static', filename='brand/panda-logo.png') }}" class="panda-brand-logo" alt="" width="46" height="46">
+                <span>Panda</span>
             </a>
             <!-- Botón para colapsar/expandir sidebar -->
-            <button class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()">
+            <button class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" aria-label="Contraer o expandir menú">
                 <i class="bi bi-chevron-left"></i>
             </button>
         </div>
@@ -70,13 +71,13 @@
             {% if current_user.is_authenticated %}
                 {% if current_user.es_admin %}
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.dashboard') }}" class="sidebar-link">
+                        <a href="{{ url_for('admin.dashboard') }}" class="sidebar-link" aria-label="Dashboard" title="Dashboard">
                             <i class="bi bi-speedometer2"></i>
                             <span>Dashboard</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.nuevo_prestamo') }}" class="sidebar-link">
+                        <a href="{{ url_for('admin.nuevo_prestamo') }}" class="sidebar-link" aria-label="Nuevo Préstamo" title="Nuevo Préstamo">
                             <i class="bi bi-plus-circle"></i>
                             <span>Nuevo Préstamo</span>
                         </a>
@@ -87,27 +88,27 @@
                         <span>Estados de Préstamo</span>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.dashboard', estado='activo') }}" class="sidebar-link status-activo">
+                        <a href="{{ url_for('admin.dashboard', estado='activo') }}" class="sidebar-link status-activo" aria-label="Activos" title="Activos">
                             <i class="bi bi-play-circle-fill icon-activo"></i>
                             <span>Activos</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.dashboard', estado='retencion') }}" class="sidebar-link status-retencion">
+                        <a href="{{ url_for('admin.dashboard', estado='retencion') }}" class="sidebar-link status-retencion" aria-label="En Retención" title="En Retención">
                             <i class="bi bi-pause-circle-fill icon-retencion"></i>
                             <span>En Retención</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.dashboard', estado='finalizado') }}" class="sidebar-link status-finalizado">
+                        <a href="{{ url_for('admin.dashboard', estado='finalizado') }}" class="sidebar-link status-finalizado" aria-label="Finalizados" title="Finalizados">
                             <i class="bi bi-check-circle-fill icon-finalizado"></i>
                             <span>Finalizados</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.dashboard', estado='decomisado') }}" class="sidebar-link status-decomisado">
+                        <a href="{{ url_for('admin.dashboard', estado='decomisado') }}" class="sidebar-link status-decomisado" aria-label="En venta" title="En venta">
                             <i class="bi bi-bag-check-fill icon-decomisado"></i>
-                            <span>Vendidos</span>
+                            <span>En venta</span>
                         </a>
                     </div>
 
@@ -115,25 +116,25 @@
                         <span>Gestión y Otros</span>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.clientes') }}" class="sidebar-link">
+                        <a href="{{ url_for('admin.clientes') }}" class="sidebar-link" aria-label="Clientes" title="Clientes">
                             <i class="bi bi-person-lines-fill"></i>
                             <span>Clientes</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.inventario') }}" class="sidebar-link">
-                            <i class="bi bi-box-seam-fill"></i>
+                        <a href="{{ url_for('admin.inventario') }}" class="sidebar-link" aria-label="Inventario" title="Inventario">
+                            <i class="bi bi-box-seam"></i>
                             <span>Inventario</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.reportes') }}" class="sidebar-link">
+                        <a href="{{ url_for('admin.reportes') }}" class="sidebar-link" aria-label="Reportes" title="Reportes">
                             <i class="bi bi-graph-up-arrow"></i>
                             <span>Reportes</span>
                         </a>
                     </div>
                     <div class="sidebar-menu-item">
-                        <a href="{{ url_for('admin.configuracion') }}" class="sidebar-link">
+                        <a href="{{ url_for('admin.configuracion') }}" class="sidebar-link" aria-label="Configuración" title="Configuración">
                             <i class="bi bi-gear-fill"></i>
                             <span>Configuración</span>
                         </a>
@@ -141,13 +142,13 @@
                 {% endif %}
             {% else %}
                 <div class="sidebar-menu-item">
-                    <a href="{{ url_for('public.index') }}" class="sidebar-link">
+                    <a href="{{ url_for('public.index') }}" class="sidebar-link" aria-label="Inicio" title="Inicio">
                         <i class="bi bi-house-door"></i>
                         <span>Inicio</span>
                     </a>
                 </div>
                 <div class="sidebar-menu-item">
-                    <a href="{{ url_for('auth.login') }}" class="sidebar-link">
+                    <a href="{{ url_for('auth.login') }}" class="sidebar-link" aria-label="Iniciar Sesión" title="Iniciar Sesión">
                         <i class="bi bi-box-arrow-in-right"></i>
                         <span>Iniciar Sesión</span>
                     </a>
@@ -169,7 +170,7 @@
                     </div>
                 </div>
             </div>
-            <a href="{{ url_for('auth.logout') }}" class="sidebar-link">
+            <a href="{{ url_for('auth.logout') }}" class="sidebar-link" aria-label="Cerrar Sesión" title="Cerrar Sesión">
                 <i class="bi bi-box-arrow-right"></i>
                 <span>Cerrar Sesión</span>
             </a>
@@ -180,7 +181,7 @@
     <!-- Main Content -->
     <div class="main-content">
         <!-- Sistema de Notificaciones Toast Global -->
-        <div id="toast-container" class="toast-container"></div>
+        <div id="toast-container" class="toast-container" aria-label="Notificaciones"></div>
         
         {% block content %}{% endblock %}
     </div>
@@ -201,6 +202,26 @@
                     form.appendChild(hidden);
                 });
             }
+        });
+    </script>
+
+    <script>
+        document.addEventListener('submit', function(event) {
+            const form = event.target;
+            if (form.dataset.submitting === 'true') {
+                event.preventDefault();
+                return;
+            }
+            if (!event.defaultPrevented) {
+                form.dataset.submitting = 'true';
+                form.querySelectorAll('button[type="submit"]').forEach(button => button.disabled = true);
+            }
+        });
+        window.addEventListener('pageshow', function() {
+            document.querySelectorAll('form[data-submitting]').forEach(form => {
+                delete form.dataset.submitting;
+                form.querySelectorAll('button[type="submit"]').forEach(button => button.disabled = false);
+            });
         });
     </script>
 
@@ -231,9 +252,10 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('active');
+            document.querySelector('.sidebar-toggle').setAttribute('aria-expanded', String(sidebar.classList.contains('active')));
         }
         function isMobileViewport() {
-            return window.matchMedia('(max-width: 768px)').matches;
+            return window.matchMedia('(max-width: 991px)').matches;
         }
         // Toggle para colapsar/expandir sidebar (escritorio)
         function toggleSidebarCollapse() {
@@ -283,63 +305,6 @@
     
     
 
-    <!-- Sistema de Toast Notifications Global -->
-    <script>
-        function showToast(message, type = 'info', duration = 4000) {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-
-            // Iconos según el tipo
-            const icons = {
-                'success': '✅',
-                'error': '❌',
-                'danger': '❌',
-                'warning': '⚠️',
-                'info': 'ℹ️'
-            };
-
-            // Crear toast (sin innerHTML para el mensaje: evita XSS si el
-            // contenido proviene de datos de usuario o de excepciones)
-            const toast = document.createElement('div');
-            toast.className = `toast-notification ${type}`;
-
-            const iconSpan = document.createElement('span');
-            iconSpan.className = 'toast-icon';
-            iconSpan.textContent = icons[type] || icons.info;
-
-            const messageSpan = document.createElement('span');
-            messageSpan.className = 'toast-message';
-            messageSpan.textContent = message;
-
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'toast-close';
-            closeBtn.setAttribute('aria-label', 'Cerrar');
-            closeBtn.addEventListener('click', function() { closeToast(toast); });
-            closeBtn.innerHTML = '<i class="bi bi-x"></i>';
-
-            const progress = document.createElement('div');
-            progress.className = 'toast-progress';
-
-            toast.append(iconSpan, messageSpan, closeBtn, progress);
-
-            container.appendChild(toast);
-
-            // Auto-cerrar después de duration
-            setTimeout(() => {
-                closeToast(toast);
-            }, duration);
-        }
-
-        function closeToast(toast) {
-            if (!toast || toast.classList.contains('closing')) return;
-            toast.classList.add('closing');
-            toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
-            setTimeout(() => {
-                if (toast.parentElement) {
-                    toast.parentElement.removeChild(toast);
-                }
-            }, 300);
-        }
-    </script>
+    <script src="{{ url_for('static', filename='js/notifications.js', v='20261017') }}"></script>
 </body>
 </html>

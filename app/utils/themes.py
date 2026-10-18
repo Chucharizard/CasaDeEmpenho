@@ -136,3 +136,60 @@ THEMES = {
         }
     }
 }
+
+# El color y la forma se eligen por separado para poder combinarlos.
+DESIGN_STYLES = {
+    'brutalist': {'name': 'Brutalista', 'description': 'Bordes firmes, bloques de color y sombras sólidas.', 'icon': 'bi-square-half'},
+    'handdrawn': {'name': 'Dibujado', 'description': 'Papel, trazos orgánicos y detalles de cuaderno.', 'icon': 'bi-pencil'},
+    'flat': {'name': 'Flat clásico', 'description': 'Superficies limpias y detalles discretos.', 'icon': 'bi-grid'},
+}
+
+# Un oscuro neutro con acentos cálidos y menos saturación.
+THEMES['graphite'] = {
+    'name': 'Grafito y salvia (Oscuro)',
+    'is_dark': True,
+    'variables': {
+        '--primario': '#adc6b0',
+        '--primario-hover': '#bfd3c1',
+        '--secundario': '#d1b48c',
+        '--bg-sidebar': '#191e1b',
+        '--bg-sidebar-hover': '#303b33',
+        '--bg-corporativo': '#151918',
+        '--bg-tarjeta': '#202624',
+        '--color-texto-principal': '#edf1e9',
+        '--color-texto-secundario': '#b1bcb3',
+        '--color-texto-sidebar': '#edf1e9',
+        '--color-texto-secundario-sidebar': '#b1bcb3',
+        '--borde': '#48534a',
+    },
+}
+
+for key, name, primary, secondary, background in [
+    ('citrus', 'Lima editorial', '#d5f365', '#7856d8', '#f6f5ee'),
+    ('coral', 'Coral y tinta', '#ff927e', '#336cdb', '#fff6ef'),
+    ('lavender', 'Lavanda y crema', '#c3b2f5', '#17806b', '#f8f5ff'),
+]:
+    THEMES[key] = {'name': name, 'is_dark': False, 'variables': {
+        '--primario': primary, '--primario-hover': primary,
+        '--secundario': secondary, '--bg-sidebar': '#191c24',
+        '--bg-sidebar-hover': '#2a2f3a', '--bg-corporativo': background,
+        '--bg-tarjeta': '#ffffff', '--color-texto-principal': '#20232c',
+        '--color-texto-secundario': '#545966', '--color-texto-sidebar': '#f9f8f2',
+        '--color-texto-secundario-sidebar': '#b3b9c6', '--borde': '#d8d9d3',
+    }}
+
+
+def _luminance(hex_color):
+    channels = [int(hex_color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+    linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+    return sum(value * weight for value, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+
+THEMES = {key: THEMES[key] for key in ('citrus', 'coral', 'lavender', 'graphite', *[key for key in THEMES if key not in ('citrus', 'coral', 'lavender', 'graphite')])}
+
+for theme in THEMES.values():
+    variables = theme['variables']
+    variables.setdefault('--secundario', '#7861d9')
+    # Contraste de texto para los botones, incluso con acentos claros.
+    variables['--sobre-primario'] = '#ffffff' if 1.05 / (_luminance(variables['--primario']) + 0.05) >= 4.5 else '#000000'
+    variables['--sobre-secundario'] = '#ffffff' if 1.05 / (_luminance(variables['--secundario']) + 0.05) >= 4.5 else '#000000'

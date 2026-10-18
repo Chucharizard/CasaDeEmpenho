@@ -223,6 +223,7 @@ class TestPrestamoPagos:
         p = _make_prestamo(u.id, monto=500.0, interes=10.0, numero=23)
         # Pagar más de lo necesario
         _db.session.add(Pago(prestamo_id=p.id, tipo_pago='total', monto_pagado=9999.0))
+        p.estado = 'finalizado'
         _db.session.commit()
         _db.session.refresh(p)
         assert p.monto_pendiente_estimado == pytest.approx(0.0)

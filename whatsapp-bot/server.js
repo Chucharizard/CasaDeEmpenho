@@ -1,246 +1,185 @@
-/**
- * WhatsApp Bot Server - Casa de Empeño
- * =====================================
- * Servicio local que se conecta a WhatsApp usando Baileys y expone
- * un API REST para que Flask envíe imágenes de recibos automáticamente.
- *
- * Endpoints:
- *   GET  /status       → Estado de conexión y número vinculado
- *   GET  /qr           → Código QR actual como imagen PNG (para escanearlo)
- *   GET  /qr-data      → Código QR como string Base64 (para incrustar en HTML)
- *   POST /send-image    → Enviar imagen a un número de WhatsApp
- *   POST /send-text     → Enviar texto a un número de WhatsApp
- *   POST /logout        → Cerrar sesión de WhatsApp
- */
-
+/** API local autenticada para el envío de comprobantes mediante Baileys. */
 const express = require('express');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const QRCode = require('qrcode');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-
-const app = express();
-app.use(express.json({ limit: '10mb' }));
-
+const QRCode = require('qrcode');
+const { createMessageStore } = require('./message_store');
 const PORT = 3001;
-const AUTH_DIR = path.join(__dirname, 'auth_session');
+const HOST = '127.0.0.1';
+if (require.main === module) {
+    const envPath = path.join(__dirname, '..', '.env');
+    if (fs.existsSync(envPath)) process.loadEnvFile(envPath);
+}
+const AUTH_DIR = process.env.CASAEMPENO_DATA_DIR ? path.join(process.env.CASAEMPENO_DATA_DIR, 'whatsapp-auth') : path.join(__dirname, 'auth_session');
 
-// ── Estado Global ──────────────────────────────────────────────────────────
-let sock = null;
-let currentQR = null;
-let connectionStatus = 'disconnected'; // disconnected | qr_pending | connected
-let linkedNumber = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT = 5;
-
-// ── Logger Silencioso (para no llenar la consola) ──────────────────────────
-const logger = pino({ level: 'silent' });
-
-// ── Conectar a WhatsApp ────────────────────────────────────────────────────
-async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-    const { version } = await fetchLatestBaileysVersion();
-
-    sock = makeWASocket({
-        version,
-        auth: state,
-        logger,
-        printQRInTerminal: false,
-        browser: ['Casa de Empeño', 'Chrome', '10.0'],
-        markOnlineOnConnect: false,
-    });
-
-    // Guardar credenciales cada vez que se actualicen
-    sock.ev.on('creds.update', saveCreds);
-
-    // Manejar actualizaciones de conexión
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        if (qr) {
-            currentQR = qr;
-            connectionStatus = 'qr_pending';
-            console.log('[WhatsApp Bot] 📱 Código QR generado. Escanéalo desde la página de administración.');
+function loadToken() {
+    if (process.env.WHATSAPP_API_TOKEN?.trim()) return process.env.WHATSAPP_API_TOKEN.trim();
+    const tokenPath = process.env.WHATSAPP_TOKEN_PATH || path.join(process.env.CASAEMPENO_DATA_DIR || path.join(__dirname, '..'), '.whatsapp_api_token');
+    try { return fs.readFileSync(tokenPath, 'utf8').trim(); }
+    catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        const token = crypto.randomBytes(32).toString('base64url');
+        try { fs.writeFileSync(tokenPath, token, { flag: 'wx', mode: 0o600 }); return token; }
+        catch (writeError) {
+            if (writeError.code === 'EEXIST') return fs.readFileSync(tokenPath, 'utf8').trim();
+            throw writeError;
         }
-
-        if (connection === 'close') {
-            currentQR = null;
-            connectionStatus = 'disconnected';
-            linkedNumber = null;
-
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
-            if (statusCode === DisconnectReason.loggedOut) {
-                console.log('[WhatsApp Bot] 🔴 Sesión cerrada por WhatsApp. Limpiando credenciales...');
-                if (fs.existsSync(AUTH_DIR)) {
-                    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-                }
-                reconnectAttempts = 0;
-                setTimeout(connectToWhatsApp, 2000);
-            } else if (shouldReconnect) {
-                // Si la sesión aún no está vinculada, reintentamos con backoff suave
-                reconnectAttempts++;
-                const delay = Math.min(reconnectAttempts * 3000, 20000);
-                console.log(`[WhatsApp Bot] ⚠️ Desconectado (${statusCode || 'timeout'}). Reintentando en ${delay / 1000}s...`);
-                setTimeout(connectToWhatsApp, delay);
-            }
-        }
-
-        if (connection === 'open') {
-            currentQR = null;
-            connectionStatus = 'connected';
-            reconnectAttempts = 0;
-            linkedNumber = sock.user?.id?.split(':')[0] || sock.user?.id?.split('@')[0] || 'desconocido';
-            console.log(`[WhatsApp Bot] ✅ Conectado exitosamente como +${linkedNumber}`);
-        }
-    });
+    }
 }
 
-// ── Formatear Número de Teléfono para WhatsApp ────────────────────────────
-function formatPhoneForWA(phone) {
-    // Limpiar todo excepto dígitos
+function formatPhone(phone) {
+    if (typeof phone !== 'string') throw new Error('Número de teléfono no válido.');
     let digits = phone.replace(/\D/g, '');
-
-    // Si son 8 dígitos y empiezan con 6 o 7 (Bolivia), agregar 591
-    if (digits.length === 8 && (digits[0] === '6' || digits[0] === '7')) {
-        digits = '591' + digits;
-    }
-
-    // Formato JID de WhatsApp
+    if (/^[67]\d{7}$/.test(digits)) digits = '591' + digits;
+    if (!/^\d{8,15}$/.test(digits)) throw new Error('Número de teléfono no válido.');
     return digits + '@s.whatsapp.net';
 }
 
-// ── API: Estado de Conexión ────────────────────────────────────────────────
-app.get('/status', (req, res) => {
-    // Si está desconectado y han pasado más de 10s, auto-iniciar reconexión
-    if (connectionStatus === 'disconnected' && !sock) {
-        connectToWhatsApp();
+function createDriver({ loadBaileys = () => require('@whiskeysockets/baileys'), authDir = AUTH_DIR } = {}) {
+    let socket = null, connecting = null, timer = null, generation = 0, attempts = 0;
+    let messageStore = null;
+    const state = { status: 'disconnected', linkedNumber: null, qr: null, error: null };
+    function retry() {
+        if (timer || attempts >= 5) return;
+        attempts++;
+        timer = setTimeout(() => { timer = null; connect().catch(() => {}); }, Math.min(attempts * 3000, 20000));
+        timer.unref();
     }
-    res.json({
-        status: connectionStatus,
-        linkedNumber: linkedNumber,
-        hasQR: currentQR !== null,
+    async function connect(force = false) {
+        if (connecting) return connecting;
+        if (!force && state.status === 'connected') return;
+        clearTimeout(timer); timer = null;
+        const run = async () => {
+            const current = ++generation;
+            if (socket) socket.end(new Error('Reconexión local'));
+            socket = null;
+            state.status = 'connecting'; state.qr = null; state.linkedNumber = null;
+            const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, proto } = loadBaileys();
+            const { state: auth, saveCreds } = await useMultiFileAuthState(authDir);
+            if (!messageStore) messageStore = createMessageStore({ filename: path.join(authDir, 'sent_messages.json'), proto });
+            const { version } = await fetchLatestBaileysVersion();
+            if (current !== generation) return;
+            const next = makeWASocket({ version, auth, logger: require('pino')({ level: 'silent' }),
+                printQRInTerminal: false, browser: ['Casa de Empeño', 'Chrome', '10.0'], markOnlineOnConnect: false,
+                getMessage: async key => messageStore.get(key) });
+            socket = next;
+            next.ev.on('messages.upsert', ({ messages }) => {
+                if (current === generation) for (const message of messages) messageStore.remember(message);
+            });
+            next.ev.on('creds.update', () => {
+                if (current === generation) saveCreds().catch(error => console.error('No se guardaron las credenciales:', error.message));
+            });
+            next.ev.on('connection.update', async update => {
+                if (current !== generation) return;
+                if (update.qr) { state.qr = update.qr; state.status = 'qr_pending'; }
+                if (update.connection === 'open') {
+                    attempts = 0; state.status = 'connected'; state.qr = null; state.error = null;
+                    state.linkedNumber = next.user?.id?.split(':')[0]?.split('@')[0] || null;
+                }
+                if (update.connection === 'close') {
+                    state.status = 'disconnected'; state.qr = null; state.linkedNumber = null; socket = null;
+                    const code = update.lastDisconnect?.error?.output?.statusCode;
+                    if (code === DisconnectReason.loggedOut) {
+                        messageStore.clear();
+                        try { fs.rmSync(authDir, { recursive: true, force: true }); }
+                        catch (error) { state.error = error.message; }
+                        attempts = 0;
+                    }
+                    retry();
+                }
+            });
+        };
+        connecting = run().catch(error => {
+            state.status = 'disconnected'; state.error = error.message; retry();
+            console.error('[WhatsApp] No se pudo conectar:', error.message);
+            throw error;
+        }).finally(() => { connecting = null; });
+        return connecting;
+    }
+    return {
+        state,
+        connect,
+        async send(jid, message) {
+            if (state.status !== 'connected' || !socket) throw new Error('WhatsApp no está conectado.');
+            const sent = await socket.sendMessage(jid, message);
+            messageStore.remember(sent);
+        },
+        async logout() {
+            ++generation; clearTimeout(timer); timer = null; attempts = 0;
+            const previous = socket; socket = null;
+            state.status = 'disconnected'; state.qr = null; state.linkedNumber = null;
+            try { if (previous) await previous.logout(); }
+            finally {
+                if (previous) previous.end(new Error('Sesión cerrada localmente'));
+                messageStore?.clear();
+                fs.rmSync(authDir, { recursive: true, force: true });
+            }
+        },
+    };
+}
+
+function createApp({ token, bot }) {
+    if (!token || token.length < 16) throw new Error('Se requiere una clave local de API de al menos 16 caracteres.');
+    const app = express();
+    app.disable('x-powered-by');
+    app.use((req, res, next) => {
+        const supplied = Buffer.from(req.get('X-API-Key') || '');
+        const expected = Buffer.from(token);
+        if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+            return res.status(401).json({ success: false, error: 'Acceso no autorizado.' });
+        }
+        next();
     });
-});
-
-// ── API: Forzar Reconexión ─────────────────────────────────────────────────
-app.all('/reconnect', (req, res) => {
-    reconnectAttempts = 0;
-    connectToWhatsApp();
-    res.json({ success: true, message: 'Reconexión iniciada' });
-});
-
-// ── API: Obtener QR como Imagen PNG ────────────────────────────────────────
-app.get('/qr', async (req, res) => {
-    if (!currentQR) {
-        if (connectionStatus === 'disconnected') {
-            connectToWhatsApp();
-        }
-        return res.status(404).json({ error: 'No hay código QR disponible. Puede que ya estés conectado.' });
-    }
-    try {
-        const qrPNG = await QRCode.toBuffer(currentQR, { width: 300, margin: 2 });
-        res.set('Content-Type', 'image/png');
-        res.send(qrPNG);
-    } catch (err) {
-        res.status(500).json({ error: 'Error al generar imagen QR.' });
-    }
-});
-
-// ── API: Obtener QR como Data URI (Base64) ─────────────────────────────────
-app.get('/qr-data', async (req, res) => {
-    if (!currentQR) {
-        if (connectionStatus === 'disconnected') {
-            connectToWhatsApp();
-        }
-        return res.status(404).json({ error: 'No hay código QR disponible aún. Generando...', status: connectionStatus });
-    }
-    try {
-        const dataUri = await QRCode.toDataURL(currentQR, { width: 300, margin: 2 });
-        res.json({ qr: dataUri, status: connectionStatus });
-    } catch (err) {
-        res.status(500).json({ error: 'Error al generar QR.' });
-    }
-});
-
-// ── API: Enviar Imagen ─────────────────────────────────────────────────────
-app.post('/send-image', async (req, res) => {
-    if (connectionStatus !== 'connected' || !sock) {
-        return res.status(503).json({ success: false, error: 'WhatsApp no está conectado. Escanea el QR primero.' });
-    }
-
-    const { phone, imageBase64, caption } = req.body;
-
-    if (!phone || !imageBase64) {
-        return res.status(400).json({ success: false, error: 'Se requieren "phone" e "imageBase64".' });
-    }
-
-    try {
-        const jid = formatPhoneForWA(phone);
-        const imageBuffer = Buffer.from(imageBase64, 'base64');
-
-        await sock.sendMessage(jid, {
-            image: imageBuffer,
-            caption: caption || '🧾 Comprobante de Pago - Casa de Empeño',
-            mimetype: 'image/png',
+    app.use(express.json({ limit: '10mb' }));
+    app.get('/status', (req, res) => res.json({ status: bot.state.status, linkedNumber: bot.state.linkedNumber, hasQR: !!bot.state.qr }));
+    app.post('/reconnect', (req, res) => {
+        bot.connect(true).catch(() => {});
+        res.json({ success: true, message: 'Reconexión iniciada.' });
+    });
+    app.get('/qr-data', async (req, res) => {
+        if (!bot.state.qr) return res.status(404).json({ status: bot.state.status, error: 'No hay QR disponible.' });
+        try { res.json({ qr: await QRCode.toDataURL(bot.state.qr, { width: 300, margin: 2 }), status: bot.state.status }); }
+        catch { res.status(500).json({ error: 'No se pudo generar el QR.' }); }
+    });
+    app.get('/qr', async (req, res) => {
+        if (!bot.state.qr) return res.status(404).json({ error: 'No hay QR disponible.' });
+        try { res.type('png').send(await QRCode.toBuffer(bot.state.qr)); }
+        catch { res.status(500).json({ error: 'No se pudo generar el QR.' }); }
+    });
+    for (const kind of ['text', 'image']) {
+        app.post('/send-' + kind, async (req, res) => {
+            if (bot.state.status !== 'connected') return res.status(503).json({ success: false, error: 'WhatsApp no está conectado.' });
+            let jid, message;
+            try {
+                jid = formatPhone(req.body.phone);
+                if (kind === 'text') {
+                    if (typeof req.body.message !== 'string' || !req.body.message.trim() || req.body.message.length > 10000) throw new Error('Mensaje no válido.');
+                    message = { text: req.body.message };
+                } else {
+                    const encoded = req.body.imageBase64;
+                    if (typeof encoded !== 'string' || !encoded.length || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error('Imagen no válida.');
+                    const buffer = Buffer.from(encoded, 'base64');
+                    if (!buffer.length || buffer.length > 7 * 1024 * 1024) throw new Error('Tamaño de imagen no válido.');
+                    message = { image: buffer, caption: String(req.body.caption || 'Comprobante de Pago - Casa de Empeño'), mimetype: 'image/png' };
+                }
+            } catch (error) { return res.status(400).json({ success: false, error: error.message }); }
+            try { await bot.send(jid, message); res.json({ success: true, message: 'Mensaje enviado.' }); }
+            catch (error) { res.status(502).json({ success: false, error: error.message }); }
         });
-
-        console.log(`[WhatsApp Bot] 📤 Imagen enviada a +${phone}`);
-        res.json({ success: true, message: `Imagen enviada a +${phone}` });
-    } catch (err) {
-        console.error(`[WhatsApp Bot] ❌ Error al enviar imagen a ${phone}:`, err.message);
-        res.status(500).json({ success: false, error: err.message });
     }
-});
+    app.post('/logout', async (req, res) => {
+        try { await bot.logout(); res.json({ success: true, message: 'Sesión cerrada.' }); }
+        catch (error) { res.status(500).json({ success: false, error: error.message }); }
+    });
+    return app;
+}
 
-// ── API: Enviar Texto ──────────────────────────────────────────────────────
-app.post('/send-text', async (req, res) => {
-    if (connectionStatus !== 'connected' || !sock) {
-        return res.status(503).json({ success: false, error: 'WhatsApp no está conectado.' });
-    }
-
-    const { phone, message } = req.body;
-
-    if (!phone || !message) {
-        return res.status(400).json({ success: false, error: 'Se requieren "phone" y "message".' });
-    }
-
-    try {
-        const jid = formatPhoneForWA(phone);
-        await sock.sendMessage(jid, { text: message });
-        console.log(`[WhatsApp Bot] 📤 Texto enviado a +${phone}`);
-        res.json({ success: true, message: `Texto enviado a +${phone}` });
-    } catch (err) {
-        console.error(`[WhatsApp Bot] ❌ Error al enviar texto:`, err.message);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// ── API: Cerrar Sesión ─────────────────────────────────────────────────────
-app.post('/logout', async (req, res) => {
-    try {
-        if (sock) {
-            await sock.logout();
-        }
-        connectionStatus = 'disconnected';
-        linkedNumber = null;
-        currentQR = null;
-        res.json({ success: true, message: 'Sesión cerrada.' });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// ── Iniciar Servidor ───────────────────────────────────────────────────────
-app.listen(PORT, () => {
-    console.log('');
-    console.log('╔══════════════════════════════════════════════════════════╗');
-    console.log('║  🤖 WhatsApp Bot - Casa de Empeño                      ║');
-    console.log(`║  🌐 Servidor en: http://localhost:${PORT}                 ║`);
-    console.log('║  📱 Escanea el QR desde el panel de administración      ║');
-    console.log('╚══════════════════════════════════════════════════════════╝');
-    console.log('');
-    connectToWhatsApp();
-});
+if (require.main === module) {
+    const bot = createDriver();
+    createApp({ token: loadToken(), bot }).listen(PORT, HOST, () => {
+        console.log('[WhatsApp] Servicio local en http://' + HOST + ':' + PORT);
+        bot.connect().catch(() => {});
+    });
+}
+module.exports = { createApp, createDriver, formatPhone, loadToken, HOST };

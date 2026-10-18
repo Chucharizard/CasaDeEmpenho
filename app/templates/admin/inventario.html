@@ -121,6 +121,12 @@
             </div>
             {% endif %}
         {% else %}
+            {% if historial_incompleto and tab == 'vendidos' %}
+            <div class="alert alert-info">
+                Hay ventas anteriores cuyo detalle por operación no fue registrado. Se conservan por separado y no se incluyen en los totales nuevos.
+                <ul class="mb-0">{% for anterior in historial_incompleto %}<li>{{ anterior.nombre }} · Último precio conservado: Bs. {{ '%.2f'|format(anterior.precio) }}</li>{% endfor %}</ul>
+            </div>
+            {% endif %}
             {% if productos %}
             <div class="table-responsive">
                 <table class="table">
@@ -133,7 +139,7 @@
                             {% endif %}
                             <th>Precio Venta</th>
                             {% if tab == 'vendidos' %}
-                            <th>Ganancia</th>
+                            <th>Cantidad</th><th>Ganancia</th>
                             <th>Fecha Venta</th>
                             {% else %}
                             <th>Stock</th>
@@ -147,13 +153,13 @@
                         {% for producto in productos %}
                         <tr>
                             <td><strong>{{ producto.nombre }}</strong></td>
-                            <td>{{ producto.descripcion[:50] }}{% if producto.descripcion|length > 50 %}...{% endif %}</td>
+                            <td>{{ (producto.descripcion or '')[:50] }}{% if (producto.descripcion or '')|length > 50 %}...{% endif %}</td>
                             {% if tab == 'compra' or tab == 'vendidos' %}
                             <td>Bs. {{ "%.2f"|format(producto.precio_compra or 0) }}</td>
                             {% endif %}
                             <td>Bs. {{ "%.2f"|format(producto.precio) }}</td>
                             {% if tab == 'vendidos' %}
-                            <td class="{% if producto.ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <td>{{ producto.cantidad }}</td><td class="{% if producto.ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">
                                 <strong>Bs. {{ "%.2f"|format(producto.ganancia) }}</strong>
                             </td>
                             <td>{{ producto.fecha_venta.strftime('%d/%m/%Y') if producto.fecha_venta else '-' }}</td>
@@ -260,6 +266,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="{{ url_for('admin.vender_producto', producto_id=producto.id) }}">
+                <input type="hidden" name="operacion_id" value="{{ operation_token() }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <div class="mb-3">

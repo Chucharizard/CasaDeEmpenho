@@ -1,0 +1,16 @@
+{
+  "base_migrada": true,
+  "datos_originales_sin_cambios": true,
+  "cantidades": {
+    "usuario": 899,
+    "prestamo": 1166,
+    "pago": 1942,
+    "articulo": 1166,
+    "producto_venta": 0,
+    "configuracion": 3
+  },
+  "respaldo_previo": [
+    "pre_migracion_2026-10-17_10-03-28_979046.db"
+  ],
+  "ubicacion_respaldo": "Carpeta local configurada en BACKUP_DIR; archivo excluido de Git."
+}

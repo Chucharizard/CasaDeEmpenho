@@ -4,6 +4,7 @@ Panel de escaneo de QR, estado de conexión, y envío manual de prueba.
 """
 from flask import flash, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required
+from app.utils import local_redirect_target
 
 from app.routes.admin_shared import admin, admin_required
 from app.services import whatsapp_service
@@ -70,6 +71,15 @@ def whatsapp_cerrar_sesion():
     return redirect(url_for('admin.whatsapp_panel'))
 
 
+@admin.route('/whatsapp/reconectar', methods=['POST'])
+@login_required
+@admin_required
+def whatsapp_reconectar():
+    result = whatsapp_service.reconectar()
+    flash('Reconexión iniciada. Espera el nuevo QR.' if result.get('success') else 'No se pudo reconectar el bot.', 'info' if result.get('success') else 'warning')
+    return redirect(url_for('admin.whatsapp_panel'))
+
+
 @admin.route('/whatsapp/enviar-prueba', methods=['POST'])
 @login_required
 @admin_required
@@ -82,7 +92,7 @@ def whatsapp_enviar_prueba():
 
     resultado = whatsapp_service.enviar_texto(
         telefono,
-        '🧾 *Mensaje de Prueba - Casa de Empeño*\n\n'
+        '🧾 *Mensaje de Prueba - Panda | Casa de Empeño*\n\n'
         '¡Hola! Este es un mensaje de prueba para verificar que el sistema de envío '
         'automático de recibos por WhatsApp está funcionando correctamente.\n\n'
         '✅ Si recibes este mensaje, el sistema está operativo.'
@@ -103,58 +113,19 @@ def whatsapp_reenviar_recibo(pago_id):
     """Reenvía el comprobante de pago por WhatsApp directamente a través del bot."""
     from app import db
     from app.models.prestamo import Pago
-    from app.services.pdf_service import generar_comprobante_imagen
 
     pago = db.session.get(Pago, pago_id)
     if not pago or not pago.prestamo:
         flash('Pago no encontrado.', 'danger')
-        return redirect(request.referrer or url_for('admin.dashboard'))
+        return redirect(local_redirect_target(request.referrer, url_for('admin.dashboard'), origin=request.host_url))
 
     prestamo = pago.prestamo
-    telefono = prestamo.telefono_whatsapp
-    if not telefono:
-        flash('El cliente no tiene un número de celular registrado.', 'warning')
-        return redirect(request.referrer or url_for('admin.ver_prestamo', prestamo_id=prestamo.id))
-
-    if not whatsapp_service.esta_conectado():
-        flash('El bot de WhatsApp no está conectado. Escanea el código QR primero.', 'warning')
-        return redirect(url_for('admin.whatsapp_panel'))
-
-    # Generar la imagen del recibo
-    usuario = prestamo.usuario
-    articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else 'Garantía prendaria'
-    meses_pagados = 1
-    if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
-        meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
-
-    img_buffer = generar_comprobante_imagen({
-        'numero_recibo': f"REC-{pago.id:05d}",
-        'fecha_pago': pago.fecha_pago,
-        'numero_documento': prestamo.numero_documento,
-        'numero_prestamo': prestamo.numero_prestamo,
-        'nombre_cliente': usuario.nombre if usuario else 'N/A',
-        'ci_cliente': usuario.ci if usuario else 'N/A',
-        'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
-        'articulos_descripcion': articulos_desc,
-        'tipo_pago': pago.tipo_pago,
-        'meses_pagados': meses_pagados,
-        'monto_pagado': pago.monto_pagado,
-        'monto_prestado': prestamo.monto_prestado,
-        'fecha_vencimiento': prestamo.fecha_finalizacion,
-    })
-
-    if not img_buffer:
-        flash('Error al generar la imagen del recibo.', 'danger')
-        return redirect(request.referrer or url_for('admin.ver_prestamo', prestamo_id=prestamo.id))
-
-    tipo_label = 'Pago Total (Liquidación)' if pago.tipo_pago == 'total' else 'Pago de Interés'
-    caption = f'🧾 Comprobante de {tipo_label} - Casa de Empeño'
-
-    resultado = whatsapp_service.enviar_imagen(telefono, img_buffer.getvalue(), caption)
+    from app.services.delivery_service import send_receipt
+    resultado = send_receipt(pago.id, force=True)
     if resultado.get('success'):
-        flash(f'✅ Comprobante de pago enviado directamente al WhatsApp del cliente (+{telefono}).', 'success')
+        flash('Comprobante de pago enviado directamente al WhatsApp del cliente.', 'success')
     else:
-        flash(f'❌ Error al enviar por WhatsApp: {resultado.get("error", "Desconocido")}', 'danger')
-
-    return redirect(request.referrer or url_for('admin.ver_prestamo', prestamo_id=prestamo.id))
-
+        flash(resultado.get('error', 'No se pudo enviar el comprobante.'), 'warning')
+        if resultado.get('error_code') == 'disconnected':
+            return redirect(url_for('admin.whatsapp_panel'))
+    return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo.id))

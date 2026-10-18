@@ -41,12 +41,14 @@ class Prestamo(db.Model):
     def meses_interes_pagados(self):
         if not self.interes_un_mes or self.interes_un_mes <= 0:
             return 0
-        total_interes = sum(p.monto_pagado for p in self.pagos if p.tipo_pago == 'interes')
-        return int(round(total_interes / self.interes_un_mes))
+        pagos = [p for p in self.pagos if p.tipo_pago == 'interes']
+        registrados = sum(p.meses_pagados for p in pagos if p.meses_pagados is not None)
+        historicos = sum(p.monto_pagado for p in pagos if p.meses_pagados is None)
+        return registrados + int(round(historicos / self.interes_un_mes))
 
     @property
     def meses_adeudados(self):
-        if self.estado == 'finalizado':
+        if self.estado in {'finalizado', 'decomisado'}:
             return 0
         if not self.esta_vencido:
             return 1 if self.meses_interes_pagados == 0 else 0
@@ -60,13 +62,13 @@ class Prestamo(db.Model):
 
     @property
     def interes_acumulado_pendiente(self):
-        if self.estado == 'finalizado':
+        if self.estado in {'finalizado', 'decomisado'}:
             return 0.0
         return round(self.meses_adeudados * self.interes_un_mes, 2)
 
     @property
     def monto_liquidacion_actual(self):
-        if self.estado == 'finalizado':
+        if self.estado in {'finalizado', 'decomisado'}:
             return 0.0
         return round(self.monto_prestado + self.interes_acumulado_pendiente, 2)
 
@@ -100,6 +102,10 @@ class Prestamo(db.Model):
         return round(sum(pago.monto_pagado for pago in self.pagos), 2)
 
     @property
+    def total_interes_pagado(self):
+        return round(sum(pago.monto_pagado for pago in self.pagos if pago.tipo_pago == 'interes'), 2)
+
+    @property
     def monto_objetivo_actual(self):
         return self.monto_liquidacion_actual
 
@@ -107,7 +113,7 @@ class Prestamo(db.Model):
     def monto_pendiente_estimado(self):
         if self.estado in ['finalizado', 'decomisado']:
             return 0.0
-        return max(0.0, round(self.monto_liquidacion_actual - self.total_pagado, 2))
+        return self.monto_liquidacion_actual
 
     @property
     def telefono_whatsapp(self):
@@ -138,13 +144,18 @@ class Prestamo(db.Model):
         fecha_limite = self.fecha_finalizacion.strftime('%d/%m/%Y') if self.fecha_finalizacion else "a convenir"
         monto_pagar = self.monto_liquidacion_actual
 
+        if self.estado == 'finalizado':
+            return f'¡Hola *{nombre}*! Su préstamo *{doc}* está *finalizado* y su garantía fue liberada. Gracias por su preferencia.'
+        if self.estado == 'decomisado':
+            return f'¡Hola *{nombre}*! Su préstamo *{doc}* figura como *decomisado*. Puede comunicarse con administración para consultar su registro.'
+
         if self.esta_vencido:
             dias_v = self.dias_vencido
             meses_d = self.meses_adeudados
             interes_pend = self.interes_acumulado_pendiente
 
             return (
-                f"¡Hola *{nombre}*! Le saludamos de *Casa de Empeño*.\n\n"
+                f"¡Hola *{nombre}*! Le saludamos de *Panda · Casa de Empeño*.\n\n"
                 f"Le informamos que su préstamo *{doc}* con garantía de *{articulos_desc}* "
                 f"se encuentra *vencido* desde el *{fecha_limite}* ({dias_v} días de mora).\n\n"
                 f"📋 *Detalle de su deuda:*\n"
@@ -161,7 +172,7 @@ class Prestamo(db.Model):
             interes_mes = self.interes_un_mes
 
             return (
-                f"¡Hola *{nombre}*! Le saludamos de *Casa de Empeño*.\n\n"
+                f"¡Hola *{nombre}*! Le saludamos de *Panda · Casa de Empeño*.\n\n"
                 f"Le recordamos que su préstamo *{doc}* con garantía de *{articulos_desc}* "
                 f"tiene como fecha límite de pago el *{fecha_limite}* (en {dias_restantes} días).\n\n"
                 f"📋 *Opciones de pago:*\n"
@@ -190,59 +201,23 @@ class Pago(db.Model):
     fecha_pago = db.Column(db.DateTime, default=get_bolivia_time)
     tipo_pago = db.Column(db.String(20), nullable=False)
     monto_pagado = db.Column(db.Float, nullable=False)
+    meses_pagados = db.Column(db.Integer)
+    operacion_id = db.Column(db.String(64), unique=True, index=True)
+    comprobante_json = db.Column(db.Text)
+    whatsapp_estado = db.Column(db.String(24), nullable=False, default='no_solicitado', server_default='no_solicitado')
+    whatsapp_error = db.Column(db.Text)
+    whatsapp_ultimo_intento = db.Column(db.DateTime)
+    whatsapp_intentos = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+
+    @property
+    def datos_comprobante(self):
+        from app.services.receipt_service import build_receipt_data
+        return build_receipt_data(self)
 
     @property
     def whatsapp_mensaje(self):
-        if not self.prestamo or not self.prestamo.usuario:
-            return ""
-
-        prestamo = self.prestamo
-        cliente = prestamo.usuario
-        nombre = cliente.nombre or "Estimado/a cliente"
-        recibo_num = f"REC-{self.id:05d}"
-        fecha_str = self.fecha_pago.strftime('%d/%m/%Y %H:%M') if self.fecha_pago else ""
-        articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else "su prenda"
-        doc = prestamo.numero_documento or f"#{prestamo.numero_prestamo}"
-        monto_str = f"Bs. {self.monto_pagado:.2f}"
-
-        if self.tipo_pago == 'total':
-            return (
-                f"🧾 *COMPROBANTE DE PAGO - CASA DE EMPEÑO*\n"
-                f"────────────────────────\n"
-                f"Estimado/a *{nombre}*, le confirmamos que su préstamo ha sido *liquidado y cancelado en su totalidad*.\n\n"
-                f"📋 *Detalles del Comprobante:*\n"
-                f"• *N° Recibo:* {recibo_num}\n"
-                f"• *Fecha y Hora:* {fecha_str}\n"
-                f"• *Préstamo:* {doc}\n"
-                f"• *Garantía:* {articulos_desc}\n"
-                f"• *Concepto:* Liquidación Total y Retiro de Prenda\n"
-                f"• *Monto Cancelado:* *{monto_str}*\n\n"
-                f"🎉 *ESTADO:* PRENDA LIBERADA Y DISPONIBLE PARA RETIRO\n"
-                f"────────────────────────\n"
-                f"¡Muchas gracias por su preferencia! Puede pasar por caja a retirar su artículo portando su documento de identidad."
-            )
-        else:
-            fecha_venc = prestamo.fecha_finalizacion.strftime('%d/%m/%Y') if prestamo.fecha_finalizacion else "a convenir"
-            meses = 1
-            if prestamo.interes_un_mes > 0:
-                meses = max(1, int(round(self.monto_pagado / prestamo.interes_un_mes)))
-
-            return (
-                f"🧾 *COMPROBANTE DE PAGO - CASA DE EMPEÑO*\n"
-                f"────────────────────────\n"
-                f"Estimado/a *{nombre}*, le confirmamos la recepción conforme de su pago de interés.\n\n"
-                f"📋 *Detalles del Comprobante:*\n"
-                f"• *N° Recibo:* {recibo_num}\n"
-                f"• *Fecha y Hora:* {fecha_str}\n"
-                f"• *Préstamo:* {doc}\n"
-                f"• *Garantía:* {articulos_desc}\n"
-                f"• *Concepto:* Pago de Interés Mensual ({meses} mes/es) - Renovación de Plazo\n"
-                f"• *Monto Cobrado:* *{monto_str}*\n"
-                f"• *Próximo Vencimiento:* *{fecha_venc}*\n\n"
-                f"✅ *ESTADO:* Préstamo vigente y al día.\n"
-                f"────────────────────────\n"
-                f"¡Muchas gracias por su puntualidad y preferencia!"
-            )
+        from app.services.receipt_service import payment_message
+        return payment_message(self) if self.prestamo else ''
 
     @property
     def whatsapp_url(self):

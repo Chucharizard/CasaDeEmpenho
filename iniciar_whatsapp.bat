@@ -8,7 +8,8 @@ echo.
 cd /d "%~dp0whatsapp-bot"
 if not exist node_modules (
     echo Instalando dependencias de Node.js...
-    call npm install
+    call npm ci
+    if errorlevel 1 exit /b 1
 )
 echo Iniciando servidor WhatsApp en http://localhost:3001 ...
 echo.

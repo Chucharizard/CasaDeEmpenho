@@ -2,6 +2,28 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+
+def normalize_ci(value):
+    return str(value or '').strip().upper()
+
+
+def local_redirect_target(value, default, origin=None):
+    from urllib.parse import urlsplit
+    if not value or '\\' in value or any(ord(character) < 32 or ord(character) == 127 for character in value):
+        return default
+    try:
+        parsed = urlsplit(value)
+        if origin and parsed.scheme and parsed.netloc:
+            expected = urlsplit(origin)
+            if (parsed.scheme, parsed.netloc) == (expected.scheme, expected.netloc):
+                value = (parsed.path or '/') + (f'?{parsed.query}' if parsed.query else '')
+                parsed = urlsplit(value)
+    except ValueError:
+        return default
+    if value.startswith('/') and not value.startswith('//') and not parsed.netloc and not parsed.scheme:
+        return value
+    return default
+
 def get_bolivia_time():
     """
     Retorna la fecha y hora actual en la zona horaria de Bolivia 

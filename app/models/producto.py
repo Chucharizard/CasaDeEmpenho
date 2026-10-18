@@ -19,6 +19,7 @@ class ProductoVenta(db.Model):
     proveedor = db.Column(db.String(100))
     fecha_venta = db.Column(db.DateTime)
     stock_inicial = db.Column(db.Integer)
+    prestamo_origen_id = db.Column(db.Integer, db.ForeignKey('prestamo.id'), unique=True)
 
     def __repr__(self):
         return f'<ProductoVenta {self.nombre}>'

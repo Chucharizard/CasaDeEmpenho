@@ -12,9 +12,15 @@ uploads/
 *.db-wal
 *.db-shm
 .env
+.env.*
+!.env.example
 .secret_key
 .admin_url_key
+.whatsapp_api_token
+*.log
 .vscode/
 .idea/
 whatsapp-bot/auth_session/
 whatsapp-bot/node_modules/
+whatsapp-auth/
+output/

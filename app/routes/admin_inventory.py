@@ -4,7 +4,8 @@ from flask import flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from app import db
-from app.models import Articulo, Prestamo, ProductoVenta
+from app.models import Articulo, Prestamo, ProductoVenta, Venta
+from app.services.loan_service import audit_snapshot, record_change, validate_operation_id
 from app.routes.admin_shared import admin, admin_required, clean_text, parse_non_negative_int, parse_positive_float
 
 
@@ -17,7 +18,7 @@ def inventario():
     if tab == 'compra':
         productos = ProductoVenta.query.filter_by(tipo='compra').all()
     elif tab == 'vendidos':
-        productos = ProductoVenta.query.filter_by(estado='vendido').all()
+        productos = Venta.query.order_by(Venta.fecha_venta.desc()).all()
     else:
         productos = ProductoVenta.query.filter_by(estado='disponible').all()
 
@@ -28,14 +29,15 @@ def inventario():
         ProductoVenta.precio_compra.isnot(None),
     ).scalar() or 0
 
-    ventas = ProductoVenta.query.filter_by(estado='vendido').all()
-    for venta in ventas:
-        venta.ganancia = (venta.precio or 0) - (venta.precio_compra or 0)
-
+    ventas = Venta.query.order_by(Venta.fecha_venta.desc()).all()
     total_vendido = sum(venta.precio for venta in ventas)
     total_costo = sum(venta.precio_compra or 0 for venta in ventas)
     ganancia_total = total_vendido - total_costo
     articulos_stock = Articulo.query.join(Prestamo).filter(Prestamo.estado == 'retencion').all()
+    historial_incompleto = ProductoVenta.query.filter(
+        ProductoVenta.fecha_venta.isnot(None),
+        ~ProductoVenta.id.in_(db.session.query(Venta.producto_id)),
+    ).all()
 
     return render_template(
         'admin/inventario.html',
@@ -47,6 +49,7 @@ def inventario():
         total_costo=total_costo,
         ganancia_total=ganancia_total,
         articulos_stock=articulos_stock,
+        historial_incompleto=historial_incompleto,
     )
 
 
@@ -57,6 +60,8 @@ def nuevo_producto():
     if request.method == 'POST':
         try:
             tipo = clean_text(request.form.get('tipo') or 'venta')
+            if tipo not in {'compra', 'venta'}:
+                raise ValueError('Tipo de producto no válido.')
             nombre = clean_text(request.form.get('nombre'))
             descripcion = clean_text(request.form.get('descripcion'))
             proveedor = clean_text(request.form.get('proveedor'))
@@ -103,9 +108,10 @@ def nuevo_producto():
 @login_required
 @admin_required
 def editar_producto(producto_id):
-    producto = ProductoVenta.query.get_or_404(producto_id)
+    producto = db.get_or_404(ProductoVenta, producto_id)
     if request.method == 'POST':
         try:
+            before = audit_snapshot(producto)
             nombre = clean_text(request.form.get('nombre'))
             if not nombre:
                 raise ValueError('El nombre del producto es obligatorio.')
@@ -121,6 +127,7 @@ def editar_producto(producto_id):
             proveedor = clean_text(request.form.get('proveedor'))
             if proveedor:
                 producto.proveedor = proveedor
+            record_change(producto, 'Editar producto', before)
             db.session.commit()
             flash('Producto actualizado exitosamente.', 'success')
             return redirect(url_for('admin.inventario', tab=producto.tipo))
@@ -135,23 +142,40 @@ def editar_producto(producto_id):
 @login_required
 @admin_required
 def vender_producto(producto_id):
-    producto = ProductoVenta.query.get_or_404(producto_id)
+    producto = db.get_or_404(ProductoVenta, producto_id)
 
     try:
+        operacion_id = validate_operation_id(request.form.get('operacion_id'))
         precio_final = parse_positive_float(request.form.get('precio_final', producto.precio), 'precio final')
-        if not producto.stock or producto.stock <= 0:
+        existente = Venta.query.filter_by(operacion_id=operacion_id).first()
+        if existente:
+            if existente.producto_id != producto.id or existente.precio_unitario != precio_final:
+                raise ValueError('El identificador pertenece a otra venta.')
+            flash('Esta venta ya fue registrada.', 'info')
+            return redirect(url_for('admin.inventario', tab='venta'))
+        if producto.estado != 'disponible' or producto.tipo != 'venta':
+            raise ValueError('El producto no está disponible para venta.')
+        before = audit_snapshot(producto)
+        # La condición también evita vender la última unidad desde dos procesos.
+        updated = ProductoVenta.query.filter(ProductoVenta.id == producto.id, ProductoVenta.stock > 0,
+                                            ProductoVenta.estado == 'disponible').update(
+            {ProductoVenta.stock: ProductoVenta.stock - 1}, synchronize_session=False)
+        if not updated:
             raise ValueError('No hay stock disponible.')
-
-        producto.stock -= 1
+        db.session.refresh(producto)
         if producto.stock == 0:
             producto.estado = 'vendido'
-        producto.precio = precio_final
         producto.fecha_venta = get_bolivia_time()
+        db.session.add(Venta(producto_id=producto.id, operacion_id=operacion_id,
+                             nombre=producto.nombre, descripcion=producto.descripcion or '', cantidad=1,
+                             precio_unitario=precio_final, costo_unitario=producto.precio_compra or 0,
+                             fecha_venta=producto.fecha_venta))
+        record_change(producto, 'Vender una unidad', before)
         db.session.commit()
         flash(f'Producto vendido exitosamente a Bs. {precio_final:.2f}.', 'success')
     except Exception as exc:
         db.session.rollback()
-        flash(str(exc), 'danger')
+        flash(str(exc) if isinstance(exc, ValueError) else 'No se pudo registrar la venta. Recarga e intenta nuevamente.', 'danger')
 
     return redirect(url_for('admin.inventario', tab='venta'))
 
@@ -160,7 +184,7 @@ def vender_producto(producto_id):
 @login_required
 @admin_required
 def poner_en_venta(producto_id):
-    producto = ProductoVenta.query.get_or_404(producto_id)
+    producto = db.get_or_404(ProductoVenta, producto_id)
 
     if producto.tipo != 'compra':
         flash('Este producto ya esta en venta.', 'info')
@@ -184,8 +208,15 @@ def poner_en_venta(producto_id):
 @login_required
 @admin_required
 def eliminar_producto(producto_id):
-    producto = ProductoVenta.query.get_or_404(producto_id)
-    db.session.delete(producto)
+    producto = db.get_or_404(ProductoVenta, producto_id)
+    before = audit_snapshot(producto)
+    if producto.ventas or producto.prestamo_origen_id:
+        producto.estado = 'archivado'
+        record_change(producto, 'Archivar producto', before)
+        flash('Producto archivado. Se conserva su historial de ventas y origen.', 'success')
+    else:
+        record_change(producto, 'Eliminar producto', before)
+        db.session.delete(producto)
+        flash('Producto eliminado exitosamente.', 'success')
     db.session.commit()
-    flash('Producto eliminado exitosamente.', 'success')
     return redirect(url_for('admin.inventario'))

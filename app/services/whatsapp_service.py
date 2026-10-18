@@ -8,10 +8,12 @@ import logging
 import urllib.request
 import urllib.error
 import json
+from flask import current_app, has_app_context
+from config import Config
 
 logger = logging.getLogger(__name__)
 
-WHATSAPP_BOT_URL = 'http://localhost:3001'
+WHATSAPP_BOT_URL = 'http://127.0.0.1:3001'
 REQUEST_TIMEOUT = 15  # segundos
 
 
@@ -20,8 +22,9 @@ def _hacer_peticion(endpoint, method='GET', data=None):
     Realiza una petición HTTP al bot de WhatsApp local.
     Usa solo urllib para evitar dependencias externas (requests).
     """
-    url = f'{WHATSAPP_BOT_URL}{endpoint}'
-    headers = {'Content-Type': 'application/json'}
+    config = current_app.config if has_app_context() else Config.__dict__
+    url = f"{config.get('WHATSAPP_BOT_URL', WHATSAPP_BOT_URL)}{endpoint}"
+    headers = {'Content-Type': 'application/json', 'X-API-Key': config['WHATSAPP_API_TOKEN']}
 
     try:
         body = json.dumps(data).encode('utf-8') if data else None
@@ -123,3 +126,7 @@ def enviar_texto(telefono, mensaje):
 def cerrar_sesion():
     """Cierra la sesión de WhatsApp (desvincula el QR)."""
     return _hacer_peticion('/logout', method='POST')
+
+
+def reconectar():
+    return _hacer_peticion('/reconnect', method='POST')

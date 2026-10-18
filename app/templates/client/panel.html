@@ -42,7 +42,7 @@
                             <span>{{ prestamo.fecha_inicio.strftime('%d/%m/%Y') }}</span>
                         </div>
                         <span class="loan-status status-{{ prestamo.estado }}">
-                            {{ prestamo.estado|upper }}
+                            {{ {'decomisado': 'EN VENTA', 'retencion': 'EN RETENCIÓN'}.get(prestamo.estado, prestamo.estado|upper) }}
                         </span>
                     </div>
                     

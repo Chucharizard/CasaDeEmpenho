@@ -1,5 +1,7 @@
 # Dependencias de desarrollo y testing
 # Instalar con: pip install -r requirements-dev.txt
+-r requirements.lock.txt
 
 pytest>=8.0
 pytest-flask>=1.3
+pyinstaller>=6.16

@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('app', 'app'), ('casa_empeno.db', '.')]
+datas = [('app', 'app'), ('migrations', 'migrations')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('reportlab')

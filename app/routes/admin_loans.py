@@ -1,23 +1,23 @@
-from app.utils import get_bolivia_time, format_bolivian_phone
+from app.utils import get_bolivia_time, format_bolivian_phone, normalize_ci, local_redirect_target
 import logging
 import os
 import threading
 import traceback
 from datetime import datetime
 from io import BytesIO
-import urllib.parse
 
 from flask import current_app, flash, redirect, render_template, request, send_file, session, url_for
 from flask_login import login_required
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
+from app.services.receipt_service import capture_receipt, build_receipt_data
+from app.services.loan_service import transition_loan, record_change, audit_snapshot, validate_operation_id
 
 from app import db
-from app.models import Articulo, Prestamo, ProductoVenta, Usuario, Configuracion
+from app.models import Articulo, Prestamo, Usuario, Configuracion
 from app.models.prestamo import Pago
 from app.services.pdf_service import generar_documento_legal, generar_comprobante_pago, generar_comprobante_imagen
-from app.services import whatsapp_service
 from app.routes.admin_shared import (
     VALID_LOAN_STATES,
     VALID_PAYMENT_TYPES,
@@ -40,7 +40,7 @@ from app.routes.admin_shared import (
 @admin_required
 def nuevo_prestamo():
     if request.method == 'POST':
-        ci = clean_text(request.form.get('ci'))
+        ci = normalize_ci(request.form.get('ci'))
         nombre = clean_text(request.form.get('nombre'))
         telefono = format_bolivian_phone(request.form.get('telefono'))
         articulo_nombre = clean_text(request.form.get('articulo_nombre'))
@@ -54,7 +54,7 @@ def nuevo_prestamo():
         try:
             monto = parse_positive_float(request.form.get('monto'), 'monto')
 
-            usuario = Usuario.query.filter_by(ci=ci).first()
+            usuario = Usuario.por_ci(ci)
             if not usuario:
                 usuario = Usuario(
                     ci=ci,
@@ -99,6 +99,7 @@ def nuevo_prestamo():
                     estado='empenado',
                 )
             )
+            record_change(prestamo, 'Crear préstamo')
             db.session.commit()
 
             if imprimir_documento:
@@ -113,7 +114,7 @@ def nuevo_prestamo():
             flash(f'Error al crear el préstamo: {exc}', 'danger')
             traceback.print_exc()
 
-    return render_template('admin/nuevo_prestamo.html')
+    return render_template('admin/nuevo_prestamo.html', tasa_interes=get_tasa_configurada('interes_prendario', 10.0))
 
 
 @admin.route('/prestamo-anterior', methods=['GET', 'POST'])
@@ -121,7 +122,7 @@ def nuevo_prestamo():
 @admin_required
 def prestamo_anterior():
     if request.method == 'POST':
-        ci = clean_text(request.form.get('ci'))
+        ci = normalize_ci(request.form.get('ci'))
         nombre = clean_text(request.form.get('nombre'))
         telefono = format_bolivian_phone(request.form.get('telefono'))
         articulo_nombre = clean_text(request.form.get('articulo_nombre'))
@@ -136,8 +137,10 @@ def prestamo_anterior():
         try:
             monto = parse_positive_float(request.form.get('monto'), 'monto')
             fecha_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d')
+            if fecha_inicio.date() > get_bolivia_time().date():
+                raise ValueError('La fecha de un préstamo anterior no puede ser futura.')
 
-            usuario = Usuario.query.filter_by(ci=ci).first()
+            usuario = Usuario.por_ci(ci)
             if not usuario:
                 usuario = Usuario(
                     ci=ci,
@@ -180,6 +183,7 @@ def prestamo_anterior():
                     estado='empenado',
                 )
             )
+            record_change(prestamo, 'Crear préstamo')
             db.session.commit()
 
             if imprimir_documento:
@@ -194,14 +198,14 @@ def prestamo_anterior():
             flash(f'Error al registrar el préstamo: {exc}', 'danger')
             traceback.print_exc()
 
-    return render_template('admin/prestamo_anterior.html')
+    return render_template('admin/prestamo_anterior.html', tasa_interes=get_tasa_configurada('interes_prendario', 10.0))
 
 
 @admin.route('/descargar-documento/<int:prestamo_id>')
 @login_required
 @admin_required
 def descargar_documento(prestamo_id):
-    prestamo = Prestamo.query.get_or_404(prestamo_id)
+    prestamo = db.get_or_404(Prestamo, prestamo_id)
     usuario = prestamo.usuario
     articulo = prestamo.articulos[0] if prestamo.articulos else None
 
@@ -235,28 +239,7 @@ def descargar_comprobante_pago(pago_id):
         return redirect(url_for('admin.dashboard'))
 
     prestamo = pago.prestamo
-    usuario = prestamo.usuario
-    articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else 'Garantía prendaria'
-
-    meses_pagados = 1
-    if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
-        meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
-
-    pdf_data = generar_comprobante_pago({
-        'numero_recibo': f"REC-{pago.id:05d}",
-        'fecha_pago': pago.fecha_pago,
-        'numero_documento': prestamo.numero_documento,
-        'numero_prestamo': prestamo.numero_prestamo,
-        'nombre_cliente': usuario.nombre if usuario else 'N/A',
-        'ci_cliente': usuario.ci if usuario else 'N/A',
-        'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
-        'articulos_descripcion': articulos_desc,
-        'tipo_pago': pago.tipo_pago,
-        'meses_pagados': meses_pagados,
-        'monto_pagado': pago.monto_pagado,
-        'monto_prestado': prestamo.monto_prestado,
-        'fecha_vencimiento': prestamo.fecha_finalizacion,
-    })
+    pdf_data = generar_comprobante_pago(build_receipt_data(pago))
 
     pdf_stream = BytesIO(pdf_data.getvalue())
     pdf_stream.seek(0)
@@ -279,28 +262,7 @@ def recibo_imagen(pago_id):
         return redirect(url_for('admin.dashboard'))
 
     prestamo = pago.prestamo
-    usuario = prestamo.usuario
-    articulos_desc = ", ".join(a.nombre for a in prestamo.articulos) if prestamo.articulos else 'Garantía prendaria'
-
-    meses_pagados = 1
-    if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
-        meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
-
-    img_data = generar_comprobante_imagen({
-        'numero_recibo': f"REC-{pago.id:05d}",
-        'fecha_pago': pago.fecha_pago,
-        'numero_documento': prestamo.numero_documento,
-        'numero_prestamo': prestamo.numero_prestamo,
-        'nombre_cliente': usuario.nombre if usuario else 'N/A',
-        'ci_cliente': usuario.ci if usuario else 'N/A',
-        'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
-        'articulos_descripcion': articulos_desc,
-        'tipo_pago': pago.tipo_pago,
-        'meses_pagados': meses_pagados,
-        'monto_pagado': pago.monto_pagado,
-        'monto_prestado': prestamo.monto_prestado,
-        'fecha_vencimiento': prestamo.fecha_finalizacion,
-    })
+    img_data = generar_comprobante_imagen(build_receipt_data(pago))
 
     img_stream = BytesIO(img_data.getvalue())
     img_stream.seek(0)
@@ -329,7 +291,7 @@ def download_pdf(documento):
 @login_required
 @admin_required
 def ver_prestamo(prestamo_id):
-    prestamo = Prestamo.query.get_or_404(prestamo_id)
+    prestamo = db.get_or_404(Prestamo, prestamo_id)
     hoy = get_bolivia_time()
 
     if prestamo.estado == 'activo' and prestamo.fecha_finalizacion < hoy:
@@ -338,6 +300,14 @@ def ver_prestamo(prestamo_id):
 
     pdf_pago_id = session.pop('pdf_pago_id', None)
     pago_reciente = db.session.get(Pago, pdf_pago_id) if pdf_pago_id else None
+    if pago_reciente and pago_reciente.prestamo_id != prestamo.id:
+        pago_reciente = None
+        pdf_pago_id = None
+
+    prompt_pago_id = session.pop('preguntar_envio_whatsapp_pago_id', None)
+    prompt_pago = db.session.get(Pago, prompt_pago_id) if prompt_pago_id else None
+    if not prompt_pago or prompt_pago.prestamo_id != prestamo.id:
+        prompt_pago_id = None
 
     return render_template(
         'admin/ver_prestamo.html',
@@ -349,6 +319,8 @@ def ver_prestamo(prestamo_id):
         whatsapp_url=prestamo.whatsapp_url,
         pdf_pago_id=pdf_pago_id,
         pago_reciente=pago_reciente,
+        prompt_pago_id=prompt_pago_id,
+        interes_maximo=get_tasa_configurada('interes_maximo', 25.0),
     )
 
 
@@ -356,9 +328,10 @@ def ver_prestamo(prestamo_id):
 @login_required
 @admin_required
 def editar_prestamo(prestamo_id):
-    prestamo = Prestamo.query.get_or_404(prestamo_id)
+    prestamo = db.get_or_404(Prestamo, prestamo_id)
 
     try:
+        before = audit_snapshot(prestamo)
         prestamo.monto_prestado = parse_positive_float(request.form.get('monto_prestado'), 'monto prestado')
         prestamo.interes_mensual = parse_interest(request.form.get('interes_mensual'))
 
@@ -394,6 +367,7 @@ def editar_prestamo(prestamo_id):
                 )
             )
 
+        record_change(prestamo, 'Editar préstamo', before)
         db.session.commit()
         flash('Préstamo actualizado exitosamente.', 'success')
     except Exception as exc:
@@ -407,20 +381,22 @@ def editar_prestamo(prestamo_id):
 @login_required
 @admin_required
 def editar_usuario(usuario_id):
-    usuario = Usuario.query.get_or_404(usuario_id)
+    usuario = db.get_or_404(Usuario, usuario_id)
     try:
+        before = audit_snapshot(usuario)
         nombre = clean_text(request.form.get('nombre'))
         telefono = format_bolivian_phone(request.form.get('telefono'))
         if not nombre:
             raise ValueError('El nombre no puede estar vacío.')
         usuario.nombre = nombre
         usuario.telefono = telefono or None
+        record_change(usuario, 'Editar cliente', before)
         db.session.commit()
         flash('Cliente actualizado exitosamente.', 'success')
     except Exception as exc:
         db.session.rollback()
         flash(f'Error al actualizar el cliente: {exc}', 'danger')
-    next_url = request.form.get('next') or url_for('admin.dashboard')
+    next_url = local_redirect_target(request.form.get('next'), url_for('admin.dashboard'))
     return redirect(next_url)
 
 
@@ -428,175 +404,94 @@ logger = logging.getLogger(__name__)
 
 
 def _enviar_recibo_whatsapp(pago_id, app):
-    """Envía el recibo como imagen por WhatsApp en un hilo de fondo.
-
-    Se ejecuta en un thread separado para no bloquear la respuesta HTTP.
-    Si el bot no está conectado o falla, simplemente logueamos y seguimos.
-    """
     if app.config.get('TESTING'):
         return
-
-    try:
-        with app.app_context():
-            if not whatsapp_service.esta_conectado():
-                logger.info('WhatsApp Bot no conectado — recibo no enviado.')
-                return
-
-            pago = Pago.query.get(pago_id)
-            if not pago or not pago.prestamo:
-                return
-
-            prestamo = pago.prestamo
-            usuario = prestamo.usuario
-
-            telefono = prestamo.telefono_whatsapp
-            if not telefono:
-                logger.info(f'Pago #{pago_id}: cliente sin teléfono registrado.')
-                return
-
-            # Construir el dict con los datos necesarios para la imagen
-            articulos_desc = ", ".join(
-                a.nombre for a in prestamo.articulos
-            ) if prestamo.articulos else 'Garantía prendaria'
-
-            meses_pagados = 1
-            if pago.tipo_pago == 'interes' and prestamo.interes_un_mes > 0:
-                meses_pagados = max(1, int(round(pago.monto_pagado / prestamo.interes_un_mes)))
-
-            img_buffer = generar_comprobante_imagen({
-                'numero_recibo': f"REC-{pago.id:05d}",
-                'fecha_pago': pago.fecha_pago,
-                'numero_documento': prestamo.numero_documento,
-                'numero_prestamo': prestamo.numero_prestamo,
-                'nombre_cliente': usuario.nombre if usuario else 'N/A',
-                'ci_cliente': usuario.ci if usuario else 'N/A',
-                'telefono_cliente': usuario.telefono if (usuario and usuario.telefono) else 'No registrado',
-                'articulos_descripcion': articulos_desc,
-                'tipo_pago': pago.tipo_pago,
-                'meses_pagados': meses_pagados,
-                'monto_pagado': pago.monto_pagado,
-                'monto_prestado': prestamo.monto_prestado,
-                'fecha_vencimiento': prestamo.fecha_finalizacion,
-            })
-
-            if not img_buffer:
-                logger.warning(f'Pago #{pago_id}: no se pudo generar imagen.')
-                return
-
-            imagen_bytes = img_buffer.getvalue()
-
-            # Preparar caption
-            tipo_label = 'Pago Total (Liquidación)' if pago.tipo_pago == 'total' else 'Pago de Interés'
-            caption = f'🧾 {tipo_label} - Casa de Empeño'
-
-            resultado = whatsapp_service.enviar_imagen(telefono, imagen_bytes, caption)
-            if resultado.get('success'):
-                logger.info(f'✅ Recibo #{pago_id} enviado por WhatsApp a +{telefono}')
-            else:
-                logger.warning(f'❌ Recibo #{pago_id} NO enviado: {resultado.get("error")}')
-    except Exception as e:
-        logger.error(f'Error al enviar recibo WhatsApp (pago #{pago_id}): {e}')
+    from app.services.delivery_service import send_receipt
+    with app.app_context(), app.extensions['database_lock']:
+        send_receipt(pago_id)
 
 
 @admin.route('/registrar-pago/<int:prestamo_id>', methods=['POST'])
 @login_required
 @admin_required
 def registrar_pago(prestamo_id):
-    prestamo = Prestamo.query.get_or_404(prestamo_id)
-
+    prestamo = db.get_or_404(Prestamo, prestamo_id)
+    operacion_id = None
     try:
+        operacion_id = validate_operation_id(request.form.get('operacion_id'))
         tipo_pago = clean_text(request.form.get('tipo_pago'))
         if tipo_pago not in VALID_PAYMENT_TYPES:
             raise ValueError('Tipo de pago no válido.')
-        if prestamo.estado not in {'activo', 'retencion'}:
-            raise ValueError('Solo se pueden registrar pagos en préstamos activos o en retención.')
-
         monto = parse_positive_float(request.form.get('monto'), 'monto')
-
+        meses = 0
         if tipo_pago == 'interes':
             try:
-                meses_pagados = max(1, int(request.form.get('meses_interes', 1)))
-            except (ValueError, TypeError):
-                meses_pagados = 1
-
-            interes_requerido = round(prestamo.interes_un_mes * meses_pagados, 2)
-            if monto < interes_requerido:
-                raise ValueError(
-                    f'El monto ingresado (Bs. {monto:.2f}) es menor al interés requerido para {meses_pagados} mes(es) (Bs. {interes_requerido:.2f}).'
-                )
-
-            nueva_fecha = prestamo.fecha_finalizacion + relativedelta(months=meses_pagados)
-            prestamo.fecha_finalizacion = nueva_fecha
-            ahora = get_bolivia_time()
-            if nueva_fecha >= ahora:
-                prestamo.estado = 'activo'
-            prestamo.ultimo_pago = ahora
-            prestamo.tipo_ultimo_pago = 'interes'
-            prestamo.monto_ultimo_pago = monto
-
-            nuevo_pago = Pago(
-                prestamo_id=prestamo_id,
-                tipo_pago='interes',
-                monto_pagado=monto,
-                fecha_pago=ahora,
-            )
-            db.session.add(nuevo_pago)
-            db.session.commit()
-            session['pdf_pago_id'] = nuevo_pago.id
-
-            # Despachar automáticamente o solicitar confirmación según configuración
-            whatsapp_auto = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
-            if whatsapp_auto:
-                threading.Thread(
-                    target=_enviar_recibo_whatsapp,
-                    args=(nuevo_pago.id, current_app._get_current_object()),
-                    daemon=True,
-                ).start()
-            else:
-                session['preguntar_envio_whatsapp_pago_id'] = nuevo_pago.id
-
-            flash(
-                f'Pago de interés ({meses_pagados} mes/es) registrado exitosamente. Nuevo vencimiento: {prestamo.fecha_finalizacion.strftime("%d/%m/%Y")}.',
-                'success',
-            )
+                meses = int(request.form.get('meses_interes', 1))
+            except (ValueError, TypeError) as exc:
+                raise ValueError('Los meses de interés deben ser enteros.') from exc
+            if not 1 <= meses <= 1200:
+                raise ValueError('La cantidad de meses debe estar entre 1 y 1200.')
+        anterior = Pago.query.filter_by(operacion_id=operacion_id).first()
+        if anterior:
+            if (anterior.prestamo_id, anterior.tipo_pago, anterior.monto_pagado, anterior.meses_pagados) != (prestamo_id, tipo_pago, monto, meses):
+                raise ValueError('El identificador ya pertenece a otra operación.')
+            session['pdf_pago_id'] = anterior.id
+            flash('Este pago ya fue registrado. Se muestra el comprobante original.', 'info')
+            return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo_id))
+        if prestamo.estado not in {'activo', 'retencion'}:
+            raise ValueError('Solo se pueden registrar pagos en préstamos activos o en retención.')
+        requerido = round(prestamo.interes_un_mes * meses, 2) if tipo_pago == 'interes' else prestamo.monto_liquidacion_actual
+        if monto < requerido:
+            raise ValueError(f'El monto ingresado (Bs. {monto:.2f}) es menor al requerido (Bs. {requerido:.2f}).')
+        ahora = get_bolivia_time()
+        before = audit_snapshot(prestamo)
+        if tipo_pago == 'interes':
+            prestamo.fecha_finalizacion += relativedelta(months=meses)
+            transition_loan(prestamo, 'activo' if prestamo.fecha_finalizacion >= ahora else 'retencion', before=before)
         else:
-            total_a_pagar = round(prestamo.monto_liquidacion_actual, 2)
-            if monto < total_a_pagar:
-                raise ValueError(
-                    f'El monto ingresado (Bs. {monto:.2f}) es menor al total requerido para liquidar (Bs. {total_a_pagar:.2f}).'
-                )
-
-            ahora = get_bolivia_time()
-            nuevo_pago = Pago(
-                prestamo_id=prestamo_id,
-                tipo_pago='total',
-                monto_pagado=monto,
-                fecha_pago=ahora,
-            )
-            db.session.add(nuevo_pago)
-            prestamo.estado = 'finalizado'
-            prestamo.ultimo_pago = ahora
-            prestamo.tipo_ultimo_pago = 'total'
-            prestamo.monto_ultimo_pago = monto
-            db.session.commit()
-            session['pdf_pago_id'] = nuevo_pago.id
-
-            # Despachar automáticamente o solicitar confirmación según configuración
-            whatsapp_auto = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
-            if whatsapp_auto:
-                threading.Thread(
-                    target=_enviar_recibo_whatsapp,
-                    args=(nuevo_pago.id, current_app._get_current_object()),
-                    daemon=True,
-                ).start()
-            else:
-                session['preguntar_envio_whatsapp_pago_id'] = nuevo_pago.id
-
+            transition_loan(prestamo, 'finalizado', before=before)
+        prestamo.ultimo_pago = ahora
+        prestamo.tipo_ultimo_pago = tipo_pago
+        prestamo.monto_ultimo_pago = monto
+        automatico = Configuracion.get_valor('whatsapp_auto_envio', 'true') == 'true'
+        pago = Pago(prestamo_id=prestamo.id, tipo_pago=tipo_pago, monto_pagado=monto,
+                    fecha_pago=ahora, meses_pagados=meses, operacion_id=operacion_id,
+                    whatsapp_estado='pendiente' if automatico else 'no_solicitado')
+        db.session.add(pago)
+        db.session.flush()
+        capture_receipt(pago, prestamo, meses=meses, importe_requerido=requerido)
+        record_change(pago, 'Registrar pago')
+        db.session.commit()
+        session['pdf_pago_id'] = pago.id
+        if automatico:
+            if not current_app.config.get('TESTING'):
+                try:
+                    threading.Thread(target=_enviar_recibo_whatsapp,
+                                     args=(pago.id, current_app._get_current_object()), daemon=True).start()
+                except RuntimeError:
+                    logger.exception('Pago guardado; el recibo queda pendiente de envío')
+        else:
+            session['preguntar_envio_whatsapp_pago_id'] = pago.id
+        if tipo_pago == 'interes':
+            flash(f'Pago de interés ({meses} mes/es) registrado exitosamente. Nuevo vencimiento: {prestamo.fecha_finalizacion:%d/%m/%Y}.', 'success')
+        else:
             flash('Pago total registrado exitosamente. El préstamo fue finalizado y la prenda liberada.', 'success')
-    except Exception as exc:
+    except IntegrityError:
+        db.session.rollback()
+        anterior = Pago.query.filter_by(operacion_id=operacion_id).first() if operacion_id else None
+        if anterior and anterior.prestamo_id == prestamo_id:
+            session['pdf_pago_id'] = anterior.id
+            flash('Este pago ya fue registrado.', 'info')
+        else:
+            logger.exception('No se pudo registrar el pago')
+            flash('No se pudo registrar el pago. Recarga la página e intenta nuevamente.', 'danger')
+    except ValueError as exc:
         db.session.rollback()
         flash(str(exc), 'danger')
-
+    except Exception:
+        db.session.rollback()
+        logger.exception('Error al registrar pago')
+        flash('No se pudo registrar el pago. Intenta nuevamente.', 'danger')
     return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo_id))
 
 
@@ -604,16 +499,22 @@ def registrar_pago(prestamo_id):
 @login_required
 @admin_required
 def cambiar_estado(prestamo_id):
-    prestamo = Prestamo.query.get_or_404(prestamo_id)
+    prestamo = db.get_or_404(Prestamo, prestamo_id)
     nuevo_estado = clean_text(request.form.get('estado'))
 
     if nuevo_estado not in VALID_LOAN_STATES:
         flash('Estado no válido.', 'danger')
         return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo.id))
 
-    prestamo.estado = nuevo_estado
-    db.session.commit()
-    flash(f'Estado del préstamo actualizado a: {nuevo_estado}.', 'success')
+    try:
+        transition_loan(prestamo, nuevo_estado, motivo=clean_text(request.form.get('motivo')))
+        db.session.commit()
+        estado_visible = {'activo': 'Activo', 'retencion': 'En retención',
+                          'finalizado': 'Finalizado', 'decomisado': 'En venta'}[nuevo_estado]
+        flash(f'Estado del préstamo actualizado a: {estado_visible}.', 'success')
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
     return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo.id))
 
 
@@ -621,40 +522,21 @@ def cambiar_estado(prestamo_id):
 @login_required
 @admin_required
 def decomisar_a_inventario(prestamo_id):
-    prestamo = Prestamo.query.get_or_404(prestamo_id)
+    prestamo = db.get_or_404(Prestamo, prestamo_id)
     if prestamo.estado not in {'retencion', 'activo'}:
-        flash('Solo se pueden decomisar préstamos activos o en retención.', 'warning')
+        flash('Solo se pueden poner en venta garantías de préstamos activos o en retención.', 'warning')
         return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo.id))
 
     try:
         precio_venta_input = request.form.get('precio_venta')
         precio_venta = parse_positive_float(precio_venta_input, 'precio de venta') if precio_venta_input else prestamo.monto_prestado
 
-        articulo = prestamo.articulos[0] if prestamo.articulos else None
-        nombre_prod = articulo.nombre if articulo and articulo.nombre else f'Artículo de Préstamo {prestamo.numero_documento}'
-        desc_prod = articulo.descripcion if articulo and articulo.descripcion else f'Garantía de préstamo {prestamo.numero_documento}'
-
-        producto = ProductoVenta(
-            nombre=nombre_prod,
-            descripcion=desc_prod,
-            precio=precio_venta,
-            precio_compra=prestamo.monto_prestado,
-            stock=1,
-            stock_inicial=1,
-            proveedor=f'Empeño {prestamo.numero_documento} ({prestamo.usuario.nombre})',
-            tipo='venta',
-            estado='disponible',
-            fecha_publicacion=get_bolivia_time(),
-        )
-        prestamo.estado = 'decomisado'
-        if articulo:
-            articulo.estado = 'decomisado'
-
-        db.session.add(producto)
+        transition_loan(prestamo, 'decomisado', precio_venta=precio_venta,
+                        motivo=clean_text(request.form.get('motivo')))
         db.session.commit()
-        flash(f'Artículo "{nombre_prod}" decomisado y añadido al inventario de venta a Bs. {precio_venta:.2f}.', 'success')
+        flash(f'Garantía puesta en venta a Bs. {precio_venta:.2f}.', 'success')
     except Exception as exc:
         db.session.rollback()
-        flash(f'Error al decomisar artículo: {exc}', 'danger')
+        flash(f'Error al poner el artículo en venta: {exc}', 'danger')
 
     return redirect(url_for('admin.ver_prestamo', prestamo_id=prestamo.id))

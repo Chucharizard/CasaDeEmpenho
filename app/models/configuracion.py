@@ -13,11 +13,12 @@ class Configuracion(db.Model):
         return config.valor if config else default
 
     @staticmethod
-    def set_valor(clave, valor):
+    def set_valor(clave, valor, commit=True):
         config = Configuracion.query.filter_by(clave=clave).first()
         if config:
             config.valor = valor
         else:
             config = Configuracion(clave=clave, valor=valor)
             db.session.add(config)
-        db.session.commit()
+        if commit:
+            db.session.commit()

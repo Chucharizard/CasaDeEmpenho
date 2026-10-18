@@ -88,7 +88,7 @@
                                 <span id="resumen-monto" class="text-dark fw-bold">Bs. 0.00</span>
                             </div>
                             <div class="d-flex justify-content-between mb-2 text-muted">
-                                <span>📈 Interés (10%):</span>
+                                <span>📈 Interés ({{ tasa_interes }}%):</span>
                                 <span id="resumen-interes" class="text-warning fw-bold">+ Bs. 0.00</span>
                             </div>
                             <div class="border-top border-primary border-opacity-25 pt-2 mt-2">
@@ -152,7 +152,7 @@
     // ============================================
     // CONSTANTES
     // ============================================
-    const INTERES_MENSUAL = 10; // 10% de interés mensual
+    const INTERES_MENSUAL = {{ tasa_interes|tojson }};
 
     // ============================================
     // CÁLCULO AUTOMÁTICO DEL TOTAL
@@ -351,7 +351,7 @@
         const fecha = document.getElementById('fecha_inicio').value;
         const fechaFormateada = new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES');
         const monto = parseFloat(document.getElementById('monto').value) || 0;
-        const total = monto * 1.10; // Monto + 10% interés
+        const total = monto * (1 + INTERES_MENSUAL / 100); // Capital más la tasa configurada
         
         Swal.fire({
             title: '¿Confirmar préstamo?',
@@ -359,7 +359,7 @@
                 <div class="text-start p-3">
                     <p class="mb-2">📅 <strong>Fecha:</strong> ${fechaFormateada}</p>
                     <p class="mb-2">💰 <strong>Monto:</strong> Bs. ${monto.toFixed(2)}</p>
-                    <p class="mb-2">📈 <strong>Interés (10%):</strong> Bs. ${(monto * 0.10).toFixed(2)}</p>
+                    <p class="mb-2">📈 <strong>Interés ({{ tasa_interes }}%):</strong> Bs. ${(monto * INTERES_MENSUAL / 100).toFixed(2)}</p>
                     <hr class="my-3">
                     <p class="fs-5 text-primary"><strong>✅ Total a cobrar: Bs. ${total.toFixed(2)}</strong></p>
                 </div>

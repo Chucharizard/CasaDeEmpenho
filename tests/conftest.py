@@ -2,13 +2,12 @@
 Fixtures compartidos para toda la suite de tests.
 
 Estrategia:
-  - Una sola instancia de la app Flask por sesión (scope='session').
+  - Una instancia y base en memoria independientes por prueba.
   - SQLite en memoria con StaticPool → todas las sesiones de SQLAlchemy
     comparten la misma conexión, por lo que los datos insertados en fixtures
     son visibles dentro de los requests del test client.
-  - Después de cada test (autouse=True) se borran todas las filas para
-    aislar los tests sin el costo de recrear tablas.
-  - CSRF deshabilitado en TESTING=True (ver app/__init__.py).
+  - Cada petición tiene contexto y sesión propios, sin caché de identidad compartida.
+  - CSRF deshabilitado explícitamente salvo en pruebas específicas de seguridad.
 """
 
 import os
@@ -18,7 +17,6 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from werkzeug.security import generate_password_hash
 from dateutil.relativedelta import relativedelta
-from datetime import datetime
 
 # Asegurarse de que el directorio raíz del proyecto esté en sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,6 +24,7 @@ sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
 from app import create_app, db as _db
+from app.utils import get_bolivia_time
 
 # ---------------------------------------------------------------------------
 # Configuración para tests
@@ -46,40 +45,53 @@ TEST_CONFIG = {
 
 
 # ---------------------------------------------------------------------------
-# App y BD (scope=session → una sola instancia por ejecución de pytest)
+# App y BD independientes por prueba
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope='session')
-def app():
-    """Flask app con BD SQLite en memoria, lista para toda la sesión."""
-    _app = create_app(TEST_CONFIG)
-    ctx = _app.app_context()
-    ctx.push()
-    _db.create_all()
-    yield _app
-    _db.session.remove()
-    _db.drop_all()
-    ctx.pop()
+from flask.testing import FlaskClient
+from uuid import uuid4
+
+
+class BrowserClient(FlaskClient):
+    """Cada petición usa su propio contexto; simula el nonce del formulario."""
+    def open(self, *args, **kwargs):
+        path = args[0] if args and isinstance(args[0], str) else kwargs.get('path', '')
+        if kwargs.get('method', 'GET').upper() == 'POST' or kwargs.get('data') is not None:
+            if '/registrar-pago/' in path or '/vender-producto/' in path:
+                data = dict(kwargs.get('data') or {})
+                data.setdefault('operacion_id', uuid4().hex)
+                kwargs['data'] = data
+        with self.application.app_context():
+            return super().open(*args, **kwargs)
+
+
+@pytest.fixture
+def app(tmp_path):
+    config = dict(TEST_CONFIG, CSRF_ENABLED=False,
+                  BACKUP_DIR=str(tmp_path / 'backups'), UPLOAD_FOLDER=str(tmp_path / 'uploads'),
+                  CLIENT_ACCESS_ENABLED=True)
+    instance = create_app(config)
+    instance.test_client_class = BrowserClient
+    with instance.app_context():
+        _db.create_all()
+    yield instance
+    with instance.app_context():
+        _db.session.remove()
+        _db.drop_all()
+        _db.engine.dispose()
 
 
 @pytest.fixture(autouse=True)
 def clean_db(app):
-    """Limpia todas las filas entre tests sin recrear las tablas."""
-    yield
-    _db.session.rollback()
-    for table in reversed(_db.metadata.sorted_tables):
-        _db.session.execute(table.delete())
-    _db.session.commit()
+    """Contexto ORM por prueba; no se reutiliza para las peticiones HTTP."""
+    with app.app_context():
+        yield
+        _db.session.remove()
 
-
-# ---------------------------------------------------------------------------
-# Test client
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def client(app):
-    with app.test_client() as c:
-        yield c
+    return app.test_client()
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +172,7 @@ def prestamo_prendario(app, admin_user):
     """Préstamo prendario activo, vence en 1 mes, con artículo."""
     from app.models.prestamo import Prestamo
     from app.models.articulo import Articulo
-    ahora = datetime.now()
+    ahora = get_bolivia_time()
     p = Prestamo(
         numero_prestamo=1,
         numero_documento='PREST-0001',
@@ -189,7 +201,7 @@ def prestamo_vencido(app, admin_user):
     """Préstamo prendario que venció hace 5 días."""
     from app.models.prestamo import Prestamo
     from app.models.articulo import Articulo
-    ahora = datetime.now()
+    ahora = get_bolivia_time()
     p = Prestamo(
         numero_prestamo=2,
         numero_documento='PREST-0002',

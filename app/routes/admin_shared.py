@@ -1,11 +1,13 @@
 from app.utils import get_bolivia_time
 import os
 import secrets
+import math
+import json
 from datetime import datetime
 from functools import wraps
 
 from dateutil.relativedelta import relativedelta
-from flask import Blueprint, flash, redirect, url_for
+from flask import Blueprint, current_app, flash, redirect, url_for
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 
@@ -51,10 +53,15 @@ def parse_positive_float(value, field_name):
     except (TypeError, ValueError) as exc:
         raise ValueError(f'El campo {field_name} debe ser numerico.') from exc
 
+    if not math.isfinite(parsed):
+        raise ValueError(f'El campo {field_name} debe ser un numero finito.')
+    parsed = round(parsed, 2)
     if parsed <= 0:
         raise ValueError(f'El campo {field_name} debe ser mayor a 0.')
 
-    return round(parsed, 2)
+    if parsed > 1_000_000_000:
+        raise ValueError(f'El campo {field_name} supera el limite permitido.')
+    return parsed
 
 
 def parse_non_negative_int(value, field_name):
@@ -81,7 +88,7 @@ def get_tasa_configurada(clave, default):
     if valor is None:
         return default
     try:
-        return round(float(valor), 2)
+        return parse_positive_float(valor, clave)
     except (TypeError, ValueError):
         return default
 
@@ -106,8 +113,8 @@ def build_prestamo_alerts(prestamo, hoy=None):
         alerts.append({
             'level': 'danger',
             'icon': 'bi-box-arrow-right',
-            'title': 'Artículo Decomisado',
-            'message': 'Este préstamo fue decomisado y su garantía pasó al inventario de venta.',
+            'title': 'Artículo en venta',
+            'message': 'La garantía pasó al inventario de venta. Este préstamo ya no genera intereses.',
         })
         return alerts
 
@@ -115,8 +122,8 @@ def build_prestamo_alerts(prestamo, hoy=None):
         alerts.append({
             'level': 'success',
             'icon': 'bi-check-circle-fill',
-            'title': 'Préstamo Liquidado',
-            'message': f'Cancelado en su totalidad con Bs. {prestamo.total_pagado:.2f} registrados en pagos.',
+            'title': 'Préstamo Finalizado',
+            'message': f'Total de pagos registrados: Bs. {prestamo.total_pagado:.2f}. Garantía liberada.',
         })
         return alerts
 
@@ -151,7 +158,7 @@ def build_prestamo_timeline(prestamo):
         'date': prestamo.fecha_inicio,
         'icon': 'bi bi-file-earmark-plus',
         'title': f'Creacion del prestamo {prestamo.numero_documento}',
-        'description': f'Capital inicial Bs. {prestamo.monto_prestado:.2f}.',
+        'description': f'Capital registrado Bs. {prestamo.monto_prestado:.2f}.',
         'variant': 'primary',
     }]
 
@@ -173,6 +180,20 @@ def build_prestamo_timeline(prestamo):
             'variant': variant,
         })
 
+    from app.models import RegistroAuditoria
+    for registro in RegistroAuditoria.query.filter_by(entidad='prestamo', entidad_id=prestamo.id).all():
+        antes = json.loads(registro.antes_json or '{}')
+        despues = json.loads(registro.despues_json or '{}')
+        labels = {'monto_prestado': 'Capital', 'interes_mensual': 'Tasa mensual', 'fecha_finalizacion': 'Vencimiento', 'estado': 'Estado'}
+        cambios = [f'{label}: {antes[field]} → {despues.get(field)}' for field, label in labels.items()
+                   if field in antes and antes[field] != despues.get(field)]
+        if registro.motivo:
+            cambios.append(registro.motivo)
+        items.append({
+            'date': registro.fecha, 'icon': 'bi bi-pencil-square', 'title': registro.accion,
+            'description': '; '.join(cambios) or 'Cambio registrado por administración.', 'variant': 'secondary',
+        })
+
     items.append({
         'date': prestamo.fecha_finalizacion,
         'icon': 'bi bi-calendar-event',
@@ -186,15 +207,16 @@ def build_prestamo_timeline(prestamo):
 
 
 def list_backup_files():
-    if not os.path.isdir(Config.BACKUP_DIR):
+    backup_dir = current_app.config['BACKUP_DIR']
+    if not os.path.isdir(backup_dir):
         return []
 
     backups = []
-    for entry in os.listdir(Config.BACKUP_DIR):
+    for entry in os.listdir(backup_dir):
         if not entry.lower().endswith('.db'):
             continue
 
-        path = os.path.join(Config.BACKUP_DIR, entry)
+        path = os.path.join(backup_dir, entry)
         if not os.path.isfile(path):
             continue
 
@@ -215,9 +237,9 @@ def get_safe_backup_path(filename):
     if not safe_name:
         return None
 
-    candidate = os.path.abspath(os.path.join(Config.BACKUP_DIR, safe_name))
-    backup_root = os.path.abspath(Config.BACKUP_DIR)
-    if not candidate.startswith(backup_root):
+    candidate = os.path.realpath(os.path.join(current_app.config['BACKUP_DIR'], safe_name))
+    backup_root = os.path.realpath(current_app.config['BACKUP_DIR'])
+    if os.path.commonpath([candidate, backup_root]) != backup_root:
         return None
     if not os.path.isfile(candidate):
         return None

@@ -193,7 +193,7 @@ function renderEstado(data) {
                 <span class="pulse-dot pulse-green"></span> Conectado y Operativo
             </div>
             <div class="linked-number">
-                <i class="bi bi-phone me-1"></i> +${data.linkedNumber || 'N/A'}
+                <i class="bi bi-phone me-1"></i> +${String(data.linkedNumber || '').replace(/\D/g, '') || 'No disponible'}
             </div>
             <p class="text-muted mt-2 mb-3">El sistema enviará los recibos automáticamente por WhatsApp al registrar pagos.</p>
 
@@ -222,12 +222,16 @@ function renderEstado(data) {
         clearPolling();
         pollingInterval = setInterval(actualizarEstado, 30000);
 
+    } else if (data.status === 'connecting') {
+        body.textContent = 'Conectando con WhatsApp. Espera un momento…';
+        clearPolling();
+        pollingInterval = setInterval(actualizarEstado, 5000);
     } else if (data.status === 'qr_pending') {
         // Pedir el QR
         fetch('{{ url_for("admin.whatsapp_qr_data") }}')
             .then(r => r.json())
             .then(qrData => {
-                if (qrData.qr) {
+                if (typeof qrData.qr === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(qrData.qr)) {
                     body.innerHTML = `
                         <div class="status-badge status-qr mb-3">
                             <span class="pulse-dot pulse-yellow"></span> Esperando escaneo del QR
@@ -256,17 +260,21 @@ function renderEstado(data) {
         pollingInterval = setInterval(actualizarEstado, 5000);
 
     } else {
-        renderBotOffline();
+        renderBotOffline(data.status === 'disconnected');
     }
 }
 
-function renderBotOffline() {
+function renderBotOffline(responsive = false) {
     const body = document.getElementById('waStatusBody');
     body.innerHTML = `
         <div class="status-badge status-disconnected mb-3">
             <span class="pulse-dot pulse-red"></span> Bot Desconectado
         </div>
-        <p class="text-muted mt-2 mb-1">El servicio de WhatsApp Bot no está respondiendo.</p>
+        <p class="text-muted mt-2 mb-1">${responsive ? 'WhatsApp está desconectado. Pulsa Reconectar para vincularlo nuevamente.' : 'El servicio de WhatsApp no está disponible.'}</p>
+        <form method="post" action="{{ url_for('admin.whatsapp_reconectar') }}" class="my-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-primary" type="submit">Reconectar WhatsApp</button>
+        </form>
         <p class="text-muted small">
             Asegúrate de que el bot esté ejecutándose. Abre una terminal en la carpeta <code>whatsapp-bot</code> y ejecuta:<br>
             <code class="d-inline-block mt-2 px-3 py-2 rounded" style="background: #1e293b; color: #e2e8f0;">npm start</code>

@@ -1,6 +1,7 @@
 from app import db
 from flask_login import UserMixin
 from sqlalchemy.orm import validates
+from app.utils import normalize_ci
 
 
 class Usuario(UserMixin, db.Model):
@@ -17,10 +18,15 @@ class Usuario(UserMixin, db.Model):
 
     prestamos = db.relationship('Prestamo', backref='usuario', lazy=True)
 
+    @classmethod
+    def por_ci(cls, value):
+        # También reconoce registros heredados sin reescribir su identidad.
+        return cls.query.filter(db.func.upper(db.func.trim(cls.ci)) == normalize_ci(value)).first()
+
     @validates('ci')
     def validate_ci(self, key, value):
         if value is not None:
-            return str(value).strip().upper()
+            return normalize_ci(value)
         return value
 
     @validates('nombre')

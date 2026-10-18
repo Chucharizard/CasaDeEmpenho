@@ -3,14 +3,15 @@ import secrets
 import sys
 from dotenv import load_dotenv
 
-load_dotenv()
-
 IS_FROZEN = getattr(sys, 'frozen', False)
 
 if IS_FROZEN:
     BASEDIR = os.path.dirname(sys.executable)
 else:
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+load_dotenv(os.path.join(BASEDIR, '.env'))
+DATA_DIR = os.path.abspath(os.getenv('CASAEMPENO_DATA_DIR') or BASEDIR)
 
 
 def _load_or_create_secret(filename, env_name, token_bytes=32):
@@ -19,9 +20,10 @@ def _load_or_create_secret(filename, env_name, token_bytes=32):
     if env_value:
         return env_value
 
-    secret_path = os.path.join(BASEDIR, filename)
+    secret_path = os.path.join(DATA_DIR, filename)
 
     try:
+        os.makedirs(DATA_DIR, exist_ok=True)
         if os.path.exists(secret_path):
             with open(secret_path, 'r', encoding='utf-8') as secret_file:
                 value = secret_file.read().strip()
@@ -39,16 +41,17 @@ def _load_or_create_secret(filename, env_name, token_bytes=32):
 class Config:
     IS_FROZEN = IS_FROZEN
     BASEDIR = BASEDIR
+    DATA_DIR = DATA_DIR
     SECRET_KEY = _load_or_create_secret('.secret_key', 'SECRET_KEY')
 
     # Base de datos
     DB_NAME = os.getenv('DB_NAME', 'casa_empeno.db')
-    SQLITE_DB_PATH = os.path.join(BASEDIR, DB_NAME)
+    SQLITE_DB_PATH = os.path.join(DATA_DIR, DB_NAME)
     SQLALCHEMY_DATABASE_URI = 'sqlite:///' + SQLITE_DB_PATH
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Uploads
-    UPLOAD_FOLDER = os.path.join(BASEDIR, 'uploads')
+    UPLOAD_FOLDER = os.path.join(DATA_DIR, 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     TEMPLATES_AUTO_RELOAD = True
 
@@ -59,6 +62,7 @@ class Config:
         BACKUP_DIR = os.path.join(ONEDRIVE_DIR, 'Respaldo')
     else:
         BACKUP_DIR = os.path.join(USER_HOME, 'RespaldoCasaEmpeno')
+    BACKUP_DIR = os.getenv('BACKUP_DIR') or BACKUP_DIR
 
     # Admin y arranque local
     ADMIN_URL_KEY = _load_or_create_secret('.admin_url_key', 'ADMIN_URL_KEY', token_bytes=18)
@@ -75,6 +79,10 @@ class Config:
     REMEMBER_COOKIE_SAMESITE = 'Lax'
 
     ENABLE_DEV_LOGIN = os.getenv('ENABLE_DEV_LOGIN', '0').strip().lower() in ('1', 'true', 'yes')
+    CSRF_ENABLED = True
+    CLIENT_ACCESS_ENABLED = os.getenv('CLIENT_ACCESS_ENABLED', '0').lower() in ('1', 'true', 'yes')
+    WHATSAPP_BOT_URL = 'http://127.0.0.1:3001'
+    WHATSAPP_API_TOKEN = _load_or_create_secret('.whatsapp_api_token', 'WHATSAPP_API_TOKEN')
 
     @classmethod
     def init_app(cls, app):

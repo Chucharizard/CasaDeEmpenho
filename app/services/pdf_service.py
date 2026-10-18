@@ -3,8 +3,9 @@ Servicio para la generación de documentos PDF (contratos de empeño, comprobant
 utilizando ReportLab.
 """
 from io import BytesIO
+from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as PdfImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -16,6 +17,7 @@ def generar_documento_legal(data):
     Genera un documento PDF formal (tamaño carta) que actúa como constancia
     privada del préstamo prendario y entrega de garantía.
     """
+    data = {k: escape(v) if isinstance(v, str) else v for k, v in data.items()}
     buffer = BytesIO()
     
     fecha_inicio = data.get('fecha_inicio', get_bolivia_time())
@@ -177,6 +179,7 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
     Construye los flowables de un talón de recibo (Original o Copia)
     diseñado para encajar dos talones en una sola hoja tamaño carta.
     """
+    data = {k: escape(v) if isinstance(v, str) else v for k, v in data.items()}
     bloque = []
 
     title_bold = ParagraphStyle(
@@ -185,7 +188,7 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
         fontName='Helvetica-Bold',
         fontSize=12,
         leading=14,
-        textColor=colors.HexColor('#1a365d')
+        textColor=colors.HexColor('#202a25')
     )
     badge_style = ParagraphStyle(
         f'ReciboBadge_{copia_titulo[:3]}',
@@ -194,7 +197,7 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
         fontSize=9,
         leading=11,
         alignment=2,  # Derecha
-        textColor=colors.HexColor('#2b6cb0')
+        textColor=colors.HexColor('#3d5944')
     )
     lbl_style = ParagraphStyle(
         f'ReciboLbl_{copia_titulo[:3]}',
@@ -250,7 +253,7 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
     if hasattr(fecha_venc, 'strftime'):
         fecha_venc_str = fecha_venc.strftime('%d/%m/%Y')
     else:
-        fecha_venc_str = str(fecha_venc or 'N/A')
+        fecha_venc_str = str(fecha_venc or 'No registrado')
 
     tipo_pago = data.get('tipo_pago', 'interes')
     if tipo_pago == 'total':
@@ -258,19 +261,23 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
         prox_venc = "PRENDA LIBERADA (Préstamo Finalizado)"
     else:
         meses = data.get('meses_pagados', 1)
-        concepto = f"Pago de Interés ({meses} mes/es) - Renovación de Plazo"
-        prox_venc = f"Nuevo Vencimiento: {fecha_venc_str}"
+        concepto = f"Pago de Interés ({meses} mes/es) - Renovación de Plazo" if meses is not None else "Pago de Interés (registro histórico)"
+        prox_venc = (f"Vencimiento tras este pago: {fecha_venc_str}" if data.get('fecha_vencimiento')
+                     else "Plazo original no registrado")
 
     monto_pagado = float(data.get('monto_pagado', 0.0))
 
     # 1. Encabezado
+    from app.services.receipt_image import LOGO_PATH
+    logo = PdfImage(str(LOGO_PATH), width=66, height=44) if LOGO_PATH.is_file() else ''
     header_data = [
         [
-            Paragraph("<b>CASA DE EMPEÑO</b><br/><font size=7 color='#64748b'>COMPROBANTE OFICIAL DE PAGO EN CAJA</font>", title_bold),
-            Paragraph(f"<b>N° {data.get('numero_recibo', 'REC-00000')}</b><br/><font size=7.5 color='#475569'>{fecha_pago_str}</font><br/><font size=7.5 color='#2563eb'><b>[{copia_titulo}]</b></font>", badge_style)
+            logo,
+            Paragraph("<b>PANDA</b><br/><font size=8 color='#59665d'>CASA DE EMPEÑO</font><br/><font size=7 color='#59665d'>COMPROBANTE DE PAGO</font>", title_bold),
+            Paragraph(f"<b>N° {data.get('numero_recibo', 'REC-00000')}</b><br/><font size=7.5 color='#475569'>{fecha_pago_str}</font><br/><font size=7.5 color='#3d5944'><b>[{copia_titulo}]</b></font>", badge_style)
         ]
     ]
-    header_tbl = Table(header_data, colWidths=[ancho * 0.58, ancho * 0.42])
+    header_tbl = Table(header_data, colWidths=[76, ancho * 0.58 - 76, ancho * 0.42])
     header_tbl.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
@@ -327,9 +334,9 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
     econ_tbl.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#ffffff')),
-        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#f0fdf4')),
-        ('BOX', (0, 0), (-1, -1), 0.8, colors.HexColor('#16a34a')),
-        ('LINEBEFORE', (1, 0), (1, 0), 0.8, colors.HexColor('#16a34a')),
+        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#e9f0e4')),
+        ('BOX', (0, 0), (-1, -1), 0.8, colors.HexColor('#78927b')),
+        ('LINEBEFORE', (1, 0), (1, 0), 0.8, colors.HexColor('#78927b')),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
@@ -338,6 +345,10 @@ def _crear_bloque_recibo(data, copia_titulo, styles, ancho=532):
     bloque.append(econ_tbl)
     bloque.append(Spacer(1, 4))
 
+    if data.get('historico_sin_plazo'):
+        bloque.append(Paragraph('Registro histórico: el plazo original no está disponible. Los datos identificativos corresponden a la información conservada.', disclaimer_style))
+    if data.get('excedente'):
+        bloque.append(Paragraph(f"Importe adicional recibido: Bs. {data['excedente']:.2f}. No amplía los meses indicados.", disclaimer_style))
     # 4. Nota de constancia
     bloque.append(Paragraph(
         "Este comprobante acredita la recepción conforme del pago señalado. Consérvese para cualquier reclamo o renovación.",
@@ -378,7 +389,9 @@ def generar_comprobante_pago(data):
         rightMargin=40,
         leftMargin=40,
         topMargin=26,
-        bottomMargin=26
+        bottomMargin=26,
+        title=f"Panda - Comprobante {data.get('numero_recibo', '')}",
+        author='Panda · Casa de Empeño',
     )
     styles = getSampleStyleSheet()
     story = []
@@ -397,7 +410,7 @@ def generar_comprobante_pago(data):
         textColor=colors.HexColor('#94a3b8')
     )
     story.append(Paragraph(
-        "✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂",
+        "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -",
         linea_corte_style
     ))
     story.append(Spacer(1, 10))
@@ -410,142 +423,8 @@ def generar_comprobante_pago(data):
     return buffer
 
 
-def _obtener_fuente(nombre_bold, nombre_regular, tamano):
-    """
-    Intenta cargar fuentes tipográficas del sistema (Windows/Linux) o fallback a la predeterminada.
-    """
-    import os
-    from PIL import ImageFont
-    fuentes_dir = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts')
-    candidatas = [nombre_bold, nombre_regular, 'arialbd.ttf', 'arial.ttf', 'DejaVuSans-Bold.ttf', 'DejaVuSans.ttf']
-    for arch in candidatas:
-        ruta = os.path.join(fuentes_dir, arch) if os.path.exists(fuentes_dir) else arch
-        if os.path.exists(ruta):
-            try:
-                return ImageFont.truetype(ruta, tamano)
-            except Exception:
-                continue
-    try:
-        return ImageFont.truetype(nombre_regular, tamano)
-    except Exception:
-        return ImageFont.load_default()
-
 
 def generar_comprobante_imagen(data):
-    """
-    Genera un comprobante de pago digital en formato imagen PNG de alta resolución (tipo ticket oficial)
-    apto para compartir directamente por WhatsApp o copiar al portapapeles.
-    Retorna un buffer BytesIO con la imagen PNG.
-    """
-    from PIL import Image, ImageDraw
-
-    W, H = 640, 720
-    img = Image.new('RGB', (W, H), color='#f1f5f9')
-    draw = ImageDraw.Draw(img)
-
-    f_title = _obtener_fuente('segoeuib.ttf', 'segoeui.ttf', 24)
-    f_sub = _obtener_fuente('segoeui.ttf', 'segoeui.ttf', 13)
-    f_badge = _obtener_fuente('segoeuib.ttf', 'segoeui.ttf', 14)
-    f_lbl = _obtener_fuente('segoeuib.ttf', 'segoeui.ttf', 13)
-    f_val = _obtener_fuente('segoeui.ttf', 'segoeui.ttf', 13)
-    f_amount_lbl = _obtener_fuente('segoeuib.ttf', 'segoeui.ttf', 11)
-    f_amount = _obtener_fuente('segoeuib.ttf', 'segoeui.ttf', 32)
-    f_footer = _obtener_fuente('segoeui.ttf', 'segoeui.ttf', 11)
-
-    # Tarjeta principal con borde suave
-    draw.rounded_rectangle([20, 20, W - 20, H - 20], radius=16, fill='#ffffff', outline='#cbd5e1', width=2)
-
-    # Banner superior azul marino
-    draw.rounded_rectangle([20, 20, W - 20, 110], radius=16, fill='#1e3a8a')
-    draw.rectangle([20, 90, W - 20, 110], fill='#1e3a8a')
-
-    draw.text((W / 2, 50), 'CASA DE EMPEÑO', fill='#ffffff', font=f_title, anchor='mm')
-    draw.text((W / 2, 80), 'COMPROBANTE OFICIAL DE PAGO EN CAJA', fill='#93c5fd', font=f_sub, anchor='mm')
-
-    # Sub-encabezado: Recibo N° & Fecha
-    num_recibo = data.get('numero_recibo', 'REC-00000')
-    draw.text((45, 135), f"N° {num_recibo}", fill='#1e293b', font=f_badge)
-
-    fecha_pago = data.get('fecha_pago')
-    if hasattr(fecha_pago, 'strftime'):
-        fecha_pago_str = fecha_pago.strftime('%d/%m/%Y %H:%M')
-    else:
-        fecha_pago_str = str(fecha_pago or '')
-    draw.text((W - 45, 135), fecha_pago_str, fill='#64748b', font=f_val, anchor='ra')
-
-    draw.line([(45, 160), (W - 45, 160)], fill='#e2e8f0', width=1)
-
-    # Cuadro de Cliente y Préstamo
-    draw.rounded_rectangle([45, 175, W - 45, 365], radius=10, fill='#f8fafc', outline='#e2e8f0', width=1)
-
-    # Fila 1: Cliente & CI
-    draw.text((65, 195), 'Cliente:', fill='#64748b', font=f_lbl)
-    nombre = str(data.get('nombre_cliente', ''))
-    if len(nombre) > 24:
-        nombre = nombre[:22] + '..'
-    draw.text((140, 195), nombre, fill='#0f172a', font=f_lbl)
-
-    draw.text((360, 195), 'C.I.:', fill='#64748b', font=f_lbl)
-    draw.text((410, 195), str(data.get('ci_cliente', '')), fill='#0f172a', font=f_val)
-
-    # Fila 2: Préstamo N° & Teléfono
-    draw.text((65, 235), 'Préstamo:', fill='#64748b', font=f_lbl)
-    draw.text((140, 235), str(data.get('numero_documento', '')), fill='#2563eb', font=f_lbl)
-
-    draw.text((360, 235), 'Teléfono:', fill='#64748b', font=f_lbl)
-    draw.text((430, 235), str(data.get('telefono_cliente', 'N/A')), fill='#0f172a', font=f_val)
-
-    # Fila 3: Prenda / Garantía
-    draw.text((65, 275), 'Garantía:', fill='#64748b', font=f_lbl)
-    garantia_texto = str(data.get('articulos_descripcion', ''))
-    if len(garantia_texto) > 46:
-        garantia_texto = garantia_texto[:43] + '...'
-    draw.text((140, 275), garantia_texto, fill='#0f172a', font=f_val)
-
-    # Fila 4: Monto Préstamo
-    draw.text((65, 315), 'Monto Inicial:', fill='#64748b', font=f_lbl)
-    draw.text((160, 315), f"Bs. {float(data.get('monto_prestado', 0)):.2f}", fill='#0f172a', font=f_val)
-
-    # Cuadro Financiero (Verde destacado)
-    draw.rounded_rectangle([45, 385, W - 45, 520], radius=10, fill='#f0fdf4', outline='#16a34a', width=2)
-
-    tipo_pago = data.get('tipo_pago', 'interes')
-    fecha_venc = data.get('fecha_vencimiento')
-    if hasattr(fecha_venc, 'strftime'):
-        fecha_venc_str = fecha_venc.strftime('%d/%m/%Y')
-    else:
-        fecha_venc_str = str(fecha_venc or 'N/A')
-
-    if tipo_pago == 'total':
-        concepto = 'Liquidación Total / Retiro de Prenda'
-        estado_msg = 'PRENDA LIBERADA Y RETIRADA'
-    else:
-        meses = data.get('meses_pagados', 1)
-        concepto = f'Pago Interés ({meses} mes/es) - Renovación'
-        estado_msg = f'Nuevo Vencimiento: {fecha_venc_str}'
-
-    draw.text((65, 410), 'CONCEPTO:', fill='#166534', font=f_amount_lbl)
-    draw.text((65, 430), concepto, fill='#0f172a', font=f_lbl)
-
-    draw.text((65, 465), 'ESTADO:', fill='#166534', font=f_amount_lbl)
-    draw.text((65, 485), estado_msg, fill='#15803d', font=f_lbl)
-
-    # Total Pagado a la derecha
-    draw.text((W - 65, 420), 'TOTAL PAGADO', fill='#166534', font=f_amount_lbl, anchor='ra')
-    monto_pagado = float(data.get('monto_pagado', 0))
-    draw.text((W - 65, 465), f"Bs. {monto_pagado:.2f}", fill='#14532d', font=f_amount, anchor='ra')
-
-    # Placa de validación
-    draw.rounded_rectangle([45, 540, W - 45, 585], radius=8, fill='#e0f2fe', outline='#bae6fd', width=1)
-    draw.text((W / 2, 562), '[ EMISIÓN CONFORME Y REGISTRADA EN CAJA ]', fill='#0369a1', font=f_lbl, anchor='mm')
-
-    # Pie informativo
-    draw.text((W / 2, 610), 'Documento digital generado automáticamente por el sistema.', fill='#64748b', font=f_footer, anchor='mm')
-    draw.text((W / 2, 628), 'Conserve este comprobante como constancia legal de su pago.', fill='#64748b', font=f_footer, anchor='mm')
-    draw.text((W / 2, 660), '¡Muchas gracias por su preferencia!', fill='#1e3a8a', font=f_lbl, anchor='mm')
-
-    buffer = BytesIO()
-    img.save(buffer, format='PNG', optimize=True)
-    buffer.seek(0)
-    return buffer
-
+    """PNG Panda, generado desde la misma instantánea inmutable que el PDF."""
+    from app.services.receipt_image import generar_imagen_panda
+    return generar_imagen_panda(data)
